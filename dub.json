@@ -1,0 +1,16 @@
+{
+	"name": "funky",
+	"authors": [
+		"adanos"
+	],
+	"dependencies": {
+		"colorize": "~>1.0.5",
+		"pegged": "~>0.4.4"
+	},
+	"description": "Interpreter for my simple functional language, created for educational purposes.",
+	"copyright": "Copyright © 2018, adanos",
+	"license": "MIT",
+	"dflags": [
+		"-J./source"
+	]
+}

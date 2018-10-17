@@ -1,0 +1,172 @@
+Funky:
+
+        Code    < Element* !.
+        Element < Comment / Import / Assignment / Value / Unknown
+
+        NewLine <: '\r\n' / '\r' / '\n'
+        Whites  <: ' ' / '\t' / NewLine
+        Spacing <: (Comment / Whites)*
+        Comment <: "--" (!NewLine .)* NewLine
+
+        List(What) < What ([,] What)*
+
+        Unknown <~ (!NewLine .)* NewLine
+
+# Imports.
+
+        PathChar   <- [a-zA-Z0-9_.\-]
+        ImportPath <~ PathChar+ ('/' PathChar+)*
+        Import     <  KwordImport ImportPath
+
+# Identifiers.
+
+        NameSpacing  <- (' ' / '\t')*
+        OperatorChar <- [-+*%^&@|/()\[\]{}?:.,<>=!~"]
+        IdStart      <- !Whites !OperatorChar ![0-9] .
+        IdMiddle     <- !Whites !OperatorChar .
+        Identifier   <{ stripName } !Keyword ~(;IdStart (NameSpacing? ;IdMiddle)*)
+
+        KwordFalse    <- "false"    !IdMiddle
+        KwordImport   <- "import"   !IdMiddle
+        KwordInfinity <- "infinity" !IdMiddle
+        KwordNaN      <- "NaN"      !IdMiddle
+        KwordTrue     <- "true"     !IdMiddle
+
+        Keyword <- KwordFalse
+                 / KwordImport
+                 / KwordInfinity
+                 / KwordNaN
+                 / KwordTrue
+
+# Values.
+
+        Digit <- [0-9] NameSpacing?
+        NumberLiteral <{ stripNumber } ~(
+                Digit+                     # Sequence of digits.
+                ('.' Digit+)?              # Optional decimal point.
+                ('e' ('+' / '-')? Digit+)? # Optional scientific notation.
+        ) / KwordInfinity / KwordNaN
+
+        BooleanLiteral <- KwordTrue / KwordFalse
+
+        StringContent <~ (!["] ('\\' ["] / .))*
+        StringLiteral <- ["] StringContent ["]
+
+        ArrayLiteral < '[' ArrayContent ']'
+        ArrayContent < List(Value)?
+        ArrayAccess  < (Identifier / ArrayLiteral) '[' ArrayIndexValue ']'
+
+        ArrayIndexValue < Arithmetic / Conditional / VagueValue
+
+        OpConcatenate <- "~"
+        JoinableValue < StringLiteral / ArrayLiteral / SafeConditional / VagueValue
+        Concatenation < JoinableValue (:OpConcatenate Value)+
+
+        FunctionLiteral      < '(' ArgumentDeclarations? ')' :OpReturn Value
+        FunctionCall         < (Identifier / '(' FunctionLiteral ')') '(' FunctionArguments? ')'
+        ArgumentDeclarations < List(Identifier)
+        FunctionArguments    < List(Value)
+
+        OpAccess <- "::"
+
+        ObjectFields      < List(Assignment)
+        ObjectLiteral     < '{' ObjectFields* '}'
+        ObjectFieldAccess < (ObjectLiteral / SafeConditional / VagueValue) :OpAccess Identifier
+
+        VagueValue < FunctionCall
+                   / ArrayAccess
+                   / ObjectFieldAccess
+                   / Identifier
+
+        Value < '(' Value ')'
+              | Arithmetic
+              | ArrayLiteral
+              | AssignConstant
+              | AssignVariable
+              | BooleanLiteral
+              | Concatenation
+              | FunctionLiteral
+              | Logical
+              | NumberLiteral
+              | ObjectLiteral
+              | StringLiteral
+              | VagueValue
+              | Conditional
+
+# Arithmetic.
+
+        OpSum      <- !"+-" "+" / !"--" "-"
+        OpProduct  <- "*" / "/" / "%"
+        OpPower    <- "^"
+
+        Arithmetic < Sum
+        Sum        < Product (OpSum Product)*
+        Product    < Power (OpProduct Power)*
+        Power      < Unary (:OpPower Unary)*
+        Unary      < OpSum? Primary
+
+        Primary < '(' Arithmetic ')'
+                | NumberLiteral
+                | VagueValue
+                | SafeConditional
+
+# Logical.
+
+        OpNot  <- !"!=" "!"
+        OpOr   <- "|"
+        OpAnd  <- "&"
+        OpXor  <- "@"
+        OpIf   <- "?"
+        OpElse <- !OpAccess ":"
+
+        Logical < And
+        And     < Xor (:OpAnd Xor)*
+        Xor     < Or  (:OpXor Or )*
+        Or      < Not (:OpOr  Not)*
+        Not     < OpNot? Boolean
+
+        Boolean < '(' Logical ')'
+                | Comparison
+                | BooleanLiteral
+                | VagueValue
+                | SafeConditional
+
+        Conditional     < Logical :OpIf Value :OpElse Value
+        SafeConditional < '(' Conditional ')'
+
+# Comparisons.
+
+        OpRange <- ".." / "..."
+        OpError <- "+-"
+        OpCmp   <- "=" / "!="
+                / "<=" / !OpConstant !OpVariable "<"
+                / ">=" / ">"
+
+        ComparableValue < Arithmetic
+                        | Logical
+                        | ArrayLiteral
+                        | BooleanLiteral
+                        | NumberLiteral
+                        | ObjectLiteral
+                        | StringLiteral
+                        | SafeConditional
+                        | VagueValue
+
+        Comparison < ComparableValue OpCmp ComparableValue ((OpError / OpRange) ComparableValue)?
+                   | ComparableValue (OpCmp Comparison{ trimOnce })+
+
+# Assignments.
+
+        OpReturn   <- "->"
+        OpVariable <- "<-"
+        OpConstant <- "<<"
+
+        Assign(Op) < VagueValue ;Op Value
+
+        AssignConstant < Assign(OpConstant)
+        AssignVariable < Assign(OpVariable)
+        AssignFunction < Identifier FunctionLiteral
+
+        Assignment < AssignConstant
+                   / AssignVariable
+                   / AssignFunction
