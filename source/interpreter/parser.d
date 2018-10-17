@@ -37,7 +37,7 @@ PT trimOnce(PT)(PT p)
 
 PT trim(PT)(PT p)
 {
-        static string[] keepName = map!(x => "Funky." ~ x)([
+        static const(string[]) keepName = map!(x => "Funky." ~ x)([
                 "ArgumentDeclarations",
                 "ArrayContent",
                 "AssignConstant",
@@ -48,7 +48,7 @@ PT trim(PT)(PT p)
                 "ObjectFields",
         ]).array;
 
-        static string[] keepNode = map!(x => "Funky." ~ x)([
+        static const(string[]) keepNode = map!(x => "Funky." ~ x)([
                 "ArrayLiteral",
                 "Code",
                 "FunctionCall",
@@ -60,7 +60,10 @@ PT trim(PT)(PT p)
         if (p.children.length == 1 && !keepNode.canFind(p.name))
         {
                 PT result = p.children[0].trim;
-                result.name = keepName.canFind(p.name) ? p.name : result.name;
+                if (keepName.canFind(p.name))
+                {
+                        result.name = p.name;
+                }
                 return result;
         }
 
