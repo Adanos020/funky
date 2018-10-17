@@ -52,9 +52,9 @@ Funky:
         StringContent <~ (!["] ('\\' ["] / .))*
         StringLiteral <- ["] StringContent ["]
 
-        ArrayLiteral < '[' ArrayContent ']'
-        ArrayContent < List(Value)?
-        ArrayAccess  < (Identifier / ArrayLiteral) '[' ArrayIndexValue ']'
+        ArrayContent < List(Value)
+        ArrayLiteral < '[' ArrayContent? ']'
+        ArrayAccess  < (ArrayLiteral / SafeConditional / VagueValue) '[' ArrayIndexValue ']'
 
         ArrayIndexValue < Arithmetic / Conditional / VagueValue
 
@@ -62,16 +62,16 @@ Funky:
         JoinableValue < StringLiteral / ArrayLiteral / SafeConditional / VagueValue
         Concatenation < JoinableValue (:OpConcatenate Value)+
 
-        FunctionLiteral      < '(' ArgumentDeclarations? ')' :OpReturn Value
-        FunctionCall         < (Identifier / '(' FunctionLiteral ')') '(' FunctionArguments? ')'
+        FunctionLiteral      < '(' ArgumentDeclarations? ')' ;OpReturn Value
+        FunctionCall         < ('(' FunctionLiteral ')' / SafeConditional / VagueValue) '(' FunctionArguments? ')'
         ArgumentDeclarations < List(Identifier)
         FunctionArguments    < List(Value)
 
         OpAccess <- "::"
 
         ObjectFields      < List(Assignment)
-        ObjectLiteral     < '{' ObjectFields* '}'
-        ObjectFieldAccess < (ObjectLiteral / SafeConditional / VagueValue) :OpAccess Identifier
+        ObjectLiteral     < '{' ObjectFields? '}'
+        ObjectFieldAccess < (ObjectLiteral / SafeConditional / VagueValue) ;OpAccess Identifier
 
         VagueValue < FunctionCall
                    / ArrayAccess
@@ -85,13 +85,14 @@ Funky:
               | AssignVariable
               | BooleanLiteral
               | Concatenation
+              | Conditional
               | FunctionLiteral
               | Logical
               | NumberLiteral
               | ObjectLiteral
+              | SafeConditional
               | StringLiteral
               | VagueValue
-              | Conditional
 
 # Arithmetic.
 
@@ -102,7 +103,7 @@ Funky:
         Arithmetic < Sum
         Sum        < Product (OpSum Product)*
         Product    < Power (OpProduct Power)*
-        Power      < Unary (:OpPower Unary)*
+        Power      < Unary (;OpPower Unary)*
         Unary      < OpSum? Primary
 
         Primary < '(' Arithmetic ')'
@@ -120,9 +121,9 @@ Funky:
         OpElse <- !OpAccess ":"
 
         Logical < And
-        And     < Xor (:OpAnd Xor)*
-        Xor     < Or  (:OpXor Or )*
-        Or      < Not (:OpOr  Not)*
+        And     < Xor (;OpAnd Xor)*
+        Xor     < Or  (;OpXor Or )*
+        Or      < Not (;OpOr  Not)*
         Not     < OpNot? Boolean
 
         Boolean < '(' Logical ')'
@@ -131,7 +132,7 @@ Funky:
                 | VagueValue
                 | SafeConditional
 
-        Conditional     < Logical :OpIf Value :OpElse Value
+        Conditional     < Logical ;OpIf Value ;OpElse Value
         SafeConditional < '(' Conditional ')'
 
 # Comparisons.
