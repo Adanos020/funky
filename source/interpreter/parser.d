@@ -37,9 +37,10 @@ PT trimOnce(PT)(PT p)
 
 PT trim(PT)(PT p)
 {
-        static const(string[]) keepName = map!(x => "Funky." ~ x)([
+        static immutable(string[]) keepName = map!(x => "Funky." ~ x)([
                 "ArgumentDeclarations",
                 "ArrayContent",
+                "ArraySlice",
                 "AssignConstant",
                 "AssignFunction",
                 "AssignVariable",
@@ -48,9 +49,11 @@ PT trim(PT)(PT p)
                 "ObjectFields",
         ]).array;
 
-        static const(string[]) keepNode = map!(x => "Funky." ~ x)([
+        static immutable(string[]) keepNode = map!(x => "Funky." ~ x)([
                 "ArrayLiteral",
+                "ArraySlice",
                 "Code",
+                "FunctionArguments",
                 "FunctionCall",
                 "FunctionLiteral",
                 "ObjectLiteral",

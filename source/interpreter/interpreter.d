@@ -4,7 +4,10 @@ import interpreter.parser;
 import pegged.grammar;
 
 import std.algorithm.searching;
+import std.file;
+import std.range;
 import std.stdio;
+import std.string;
 
 
 enum StatusCode
@@ -34,17 +37,31 @@ private
 
 ParseStatus importModule(string modulePath)
 {
+        scope(failure)
+        {
+                return ParseStatus(
+                        StatusCode.FAILURE,
+                        "Could not import module: `%s`".format(modulePath)
+                );
+        }
+
         if (importedModules.canFind(modulePath))
         {
                 return ParseStatus(StatusCode.SUCCESS);
         }
 
-        scope(failure)
+        if (modulePath.exists && modulePath.isDir)
         {
-                return ParseStatus(
-                        StatusCode.FAILURE,
-                        "Could not import module: " ~ modulePath
-                );
+                foreach (entry; dirEntries(modulePath, SpanMode.depth))
+                {
+                        // Removing file extension from filename. ↓
+                        ParseStatus status = importModule(entry.array.retro.find(".").retro.chop);
+                        if (status.code == StatusCode.FAILURE)
+                        {
+                                return status;
+                        }
+                }
+                return ParseStatus(StatusCode.SUCCESS);
         }
 
         File file = File(modulePath ~ fileExtension, "r");

@@ -55,11 +55,16 @@ Funky:
         ArrayContent < List(Value)
         ArrayLiteral < '[' ArrayContent? ']'
         ArrayAccess  < (ArrayLiteral / SafeConditional / VagueValue) '[' ArrayIndexValue ']'
+        ArraySlice   < (ArrayLiteral / SafeConditional / VagueValue) '[' (
+                ArrayIndexValue OpRange                 /
+                ArrayIndexValue OpRange ArrayIndexValue /
+                                OpRange ArrayIndexValue
+        ) ']'
 
         ArrayIndexValue < Arithmetic / Conditional / VagueValue
 
         OpConcatenate <- "~"
-        JoinableValue < StringLiteral / ArrayLiteral / SafeConditional / VagueValue
+        JoinableValue < StringLiteral / ArrayLiteral / ArraySlice / SafeConditional / VagueValue
         Concatenation < JoinableValue (:OpConcatenate Value)+
 
         FunctionLiteral      < '(' ArgumentDeclarations? ')' ;OpReturn Value
@@ -81,6 +86,7 @@ Funky:
         Value < '(' Value ')'
               | Arithmetic
               | ArrayLiteral
+              | ArraySlice
               | AssignConstant
               | AssignVariable
               | BooleanLiteral
