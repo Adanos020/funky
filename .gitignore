@@ -25,5 +25,5 @@ docs/
 *.lst
 
 # Other garbage
-tree.html
+tree.*
 .vscode

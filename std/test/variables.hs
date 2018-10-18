@@ -13,6 +13,9 @@ array <- [2, 1, 37, "papież", "hehe"]
 hehe <- array[4]
 array[1] <- 13
 
+-- Array slice
+slice <- array[3..] ~ array[..2] ~ array[2...3]
+
 -- Object literal
 what can I do <- {
         kill yourself << false,

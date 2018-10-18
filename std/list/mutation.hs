@@ -7,8 +7,3 @@ fill(list, value) ->
 
 remove(list, index) ->
         in bounds(list, index) ? list[..index] ~ list[index + 1..] : list
-
-quick sort(list) ->
-        empty(list) ? [] : quick sort(filter(list, a -> a < list[0]))
-                         ~ list[0]
-                         ~ quick sort(filter(list, a -> a >= list[0]))

@@ -1,6 +1,6 @@
-import interpreter.interpreter;
+import arsd.terminal;
 
-import colorize;
+import funky.interpreter;
 
 import std.stdio;
 import std.string;
@@ -8,6 +8,10 @@ import std.string;
 
 void main(string[] args)
 {
+        auto term   = Terminal(ConsoleOutputType.linear);
+        auto events = RealTimeConsoleInput(&term, ConsoleInputFlags.raw);
+
+        init(&term);
         importModule("std/init");
 
         // Importing modules.
@@ -18,8 +22,13 @@ void main(string[] args)
 
         while (true)
         {
-                write(">>> ");
-                string command = readln.strip;
+                scope(failure)
+                {
+                        break;
+                }
+
+                term.write(">>> ");
+                string command = term.getline.strip;
 
                 ParseStatus status = command.interpret;
 
@@ -30,12 +39,15 @@ void main(string[] args)
 
                 if (status.code != StatusCode.SUCCESS)
                 {
-                        cwritefln(
-                                "Error in module `%s`, line %s: %s\n".color(fg.red) ~ status.extra,
+                        term.color(Color.red, Color.DEFAULT);
+                        term.writefln(
+                                "Error in module `%s`, line %s: %s\n%s",
                                 status.moduleName,
                                 status.line,
-                                status.message
+                                status.message,
+                                status.extra
                         );
+                        term.reset;
                 }
         }
 }

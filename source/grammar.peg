@@ -16,14 +16,14 @@ Funky:
 
         PathChar   <- [a-zA-Z0-9_.\-]
         ImportPath <~ PathChar+ ('/' PathChar+)*
-        Import     <  KwordImport ImportPath
+        Import     <  ;KwordImport ImportPath
 
 # Identifiers.
 
         NameSpacing  <- (' ' / '\t')*
-        OperatorChar <- [-+*%^&@|/()\[\]{}?:.,<>=!~"]
-        IdStart      <- !Whites !OperatorChar ![0-9] .
-        IdMiddle     <- !Whites !OperatorChar .
+        ReservedChar <- [-+*%^&@|/()\[\]{}?:.,<>=!~"]
+        IdStart      <- !Whites !ReservedChar ![0-9] .
+        IdMiddle     <- !Whites !ReservedChar .
         Identifier   <{ stripName } !Keyword ~(;IdStart (NameSpacing? ;IdMiddle)*)
 
         KwordFalse    <- "false"    !IdMiddle
@@ -52,12 +52,12 @@ Funky:
         StringContent <~ (!["] ('\\' ["] / .))*
         StringLiteral <- ["] StringContent ["]
 
-        ArrayContent < List(Value)
+        ArrayContent < List(Value){ trimOnce }
         ArrayLiteral < '[' ArrayContent? ']'
         ArrayAccess  < (ArrayLiteral / SafeConditional / VagueValue) '[' ArrayIndexValue ']'
         ArraySlice   < (ArrayLiteral / SafeConditional / VagueValue) '[' (
-                ArrayIndexValue OpRange                 /
                 ArrayIndexValue OpRange ArrayIndexValue /
+                ArrayIndexValue OpRange                 /
                                 OpRange ArrayIndexValue
         ) ']'
 
@@ -65,16 +65,17 @@ Funky:
 
         OpConcatenate <- "~"
         JoinableValue < StringLiteral / ArrayLiteral / ArraySlice / SafeConditional / VagueValue
-        Concatenation < JoinableValue (:OpConcatenate Value)+
+        Concatenation < JoinableValue (;OpConcatenate Value)+
 
-        FunctionLiteral      < '(' ArgumentDeclarations? ')' ;OpReturn Value
+        FunctionLiteral      < ('(' ArgumentDeclarations? ')' / Identifier) (':' FunctionLocals)? ;OpReturn Value
         FunctionCall         < ('(' FunctionLiteral ')' / SafeConditional / VagueValue) '(' FunctionArguments? ')'
-        ArgumentDeclarations < List(Identifier)
-        FunctionArguments    < List(Value)
+        FunctionLocals       < List(Assignment){ trimOnce }
+        ArgumentDeclarations < List(Identifier){ trimOnce }
+        FunctionArguments    < List(Value){ trimOnce }
 
         OpAccess <- "::"
 
-        ObjectFields      < List(Assignment)
+        ObjectFields      < List(Assignment){ trimOnce }
         ObjectLiteral     < '{' ObjectFields? '}'
         ObjectFieldAccess < (ObjectLiteral / SafeConditional / VagueValue) ;OpAccess Identifier
 
@@ -143,7 +144,7 @@ Funky:
 
 # Comparisons.
 
-        OpRange <- ".." / "..."
+        OpRange <- "..." / ".."
         OpError <- "+-"
         OpCmp   <- "=" / "!="
                 / "<=" / !OpConstant !OpVariable "<"

@@ -1,7 +1,9 @@
 {
 	"fileVersion": 1,
 	"versions": {
+		"arsd-official": "2.1.2",
 		"colorize": "1.0.5",
+		"consoled": "1.0.4",
 		"pegged": "0.4.4"
 	}
 }

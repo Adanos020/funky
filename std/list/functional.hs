@@ -2,18 +2,20 @@ import std/list/bound-checks
 
 -- Functional 
 all(list, pred) ->
-        empty(list) ? True
+        empty(list) ? true
                     : pred(list[0]) & all(list[1..])
 
 any(list, pred) ->
-        empty(list) ? False
+        empty(list) ? false
                     : pred(list[0]) | any(list[1..])
 
 none(list, pred) -> !any(list, pred)
 
-filter(list, pred) ->
+filter(list, pred)
+:       result <- pred(list[0]) ? [list[0]] : []
+->
         empty(list) ? []
-                    : (pred(list[0]) ? [list[0]] : []) ~ filter(list[1..], pred)
+                    : result ~ filter(list[1..], pred)
 
 map(list, func) ->
         empty(list) ? []
