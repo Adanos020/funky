@@ -22,10 +22,7 @@ void main(string[] args)
 
         while (true)
         {
-                scope(failure)
-                {
-                        break;
-                }
+                scope(failure) break;
 
                 term.write(">>> ");
                 string command = term.getline.strip;
