@@ -2,11 +2,13 @@ module funky.interpreter;
 
 import arsd.terminal;
 
+import funky.expression;
 import funky.parser;
 
 import pegged.grammar;
 
 import std.algorithm.searching;
+import std.conv;
 import std.file;
 import std.range;
 import std.stdio;
@@ -32,25 +34,37 @@ struct ParseStatus
 
 private
 {
-        struct VariableID
+        struct Variable
         {
-                string name;
                 bool constant;
+                Expression value;
         }
 
         const(string) fileExtension = ".hs";
+        const(string[]) valueTypes = [
+                "Funky.Sum",             "Funky.Product",    "Funky.Power", "Funky.Unary",
+                "Funky.ArrayLiteral",    "Funky.ArraySlice",
+                "Funky.BooleanLiteral",  "Funky.Comparison",
+                "Funky.Concatenation",
+                "Funky.Conditional",     "Funky.SafeConditional",
+                "Funky.FunctionLiteral", "Funky.FunctionCall",
+                "Funky.Identifier",
+                "Funky.And",             "Funky.Xor",        "Funky.Or",    "Funky.Not",
+                "Funky.NumberLiteral",
+                "Funky.ObjectLiteral",   "Funky.ObjectFieldAccess",
+                "Funky.StringLiteral",
+        ];
 
         string[] importedModules;
+        Variable[string] variables;
 
         Terminal* term;
 }
-
 
 void init(Terminal* terminal)
 {
         term = terminal;
 }
-
 
 ParseStatus importModule(string modulePath)
 {
@@ -110,6 +124,7 @@ ParseStatus interpret(string code)
         auto status = ParseStatus(StatusCode.SUCCESS);
 
         bool inFunctionDef = false;
+        bool constant = false;
 
         void processTree(ParseTree p)
         {
@@ -125,62 +140,92 @@ ParseStatus interpret(string code)
                                 break;
                         }
                 }
-                else switch (p.name)
+                else
                 {
-                        case "Funky.Code":
+                        if (valueTypes.canFind(p.name))
                         {
-                                processTree(p.children[0]);
-                                break;
+                                Expression expr = p.toExpression;
+                                term.writeln(expr.toString);
                         }
 
-                        case "Funky.FunctionCall":
+                        switch (p.name)
                         {
-                                string funcName = p.children[0].matches[0];
-                                if (p.children.length == 1)
+                                case "Funky.Code":
                                 {
-                                        if (funcName == "exit" || funcName == "quit")
-                                        {
-                                                status = ParseStatus(StatusCode.EXIT);
-                                                break;
-                                        }
+                                        processTree(p.children[0]);
+                                        break;
                                 }
-                                else
+
+                                case "Funky.FunctionCall":
                                 {
-                                        if (funcName == "exit" || funcName == "quit")
+                                        string funcName = p.children[0].match;
+                                        if (p.children.length == 1)
                                         {
-                                                status = ParseStatus(
-                                                        StatusCode.FAILURE,
-                                                        "Function `%s` called with %s parameters while expecting 0"
-                                                                .format(funcName, p.children[1].children.length)
+                                                if (funcName == "exit" || funcName == "quit")
+                                                {
+                                                        status = ParseStatus(StatusCode.EXIT);
+                                                        break;
+                                                }
+                                        }
+                                        else
+                                        {
+                                                if (funcName == "exit" || funcName == "quit")
+                                                {
+                                                        status = ParseStatus(
+                                                                StatusCode.FAILURE,
+                                                                "Function `%s` called with %s parameters while expecting 0"
+                                                                        .format(funcName, p.children[1].children.length)
+                                                        );
+                                                        break;
+                                                }
+                                                auto args = p.children[1].children;
+                                                // TODO - call function
+                                        }
+                                        break;
+                                }
+
+                                case "Funky.Identifier":
+                                {
+
+                                        break;
+                                }
+
+                                case "Funky.Import":
+                                {
+                                        string path = p.children[0].match;
+                                        status = importModule(path);
+                                        break;
+                                }
+
+                                case "Funky.ConstantAssignment":
+                                {
+                                        constant = true;
+                                        goto case;
+                                }
+
+                                case "Funky.FunctionAssignment", "Funky.VariableAssignment":
+                                {
+                                        string varname = p.children[0].match;
+
+                                        if (varname in variables && variables[varname].constant)
+                                        {
+                                                status = ParseStatus(StatusCode.FAILURE,
+                                                        "Attempting to assign to a constant `%s`."
+                                                                .format(varname)
                                                 );
+                                                constant = false;
                                                 break;
                                         }
-                                        auto args = p.children[1].children;
-                                        // TODO - call function
+
+                                        variables[varname] = Variable(constant, p.children[1].toExpression);
+                                        constant = false;
+                                        break;
                                 }
-                                break;
-                        }
 
-                        case "Funky.Import":
-                        {
-                                string path = p.children[0].matches[0];
-                                status = importModule(path);
-                                break;
-                        }
-
-                        case "Funky.ConstantAssignment":
-                        {
-                                bool constant = true;
-                                goto case;
-
-                        case "Funky.FunctionAssignment", "Funky.VariableAssignment":
-                        
-                                break;
-                        }
-
-                        default:
-                        {
-                                break;
+                                default:
+                                {
+                                        break;
+                                }
                         }
                 }
         }
@@ -188,4 +233,165 @@ ParseStatus interpret(string code)
         processTree(tree);
 
         return status;
+}
+
+private:
+
+string match(ParseTree p)
+{
+        return p.matches[0];
+}
+
+Expression toExpression(ParseTree p)
+{
+        final switch (p.name)
+        {
+                case "Funky.Sum", "Funky.Product", "Funky.Power":
+                {
+                        string op = p.children[1].match;
+                        auto lhs = cast(Arithmetic) p.children[0].toExpression;
+                        auto rhs = cast(Arithmetic) p.children[2].toExpression;
+
+                        switch (op)
+                        {
+                                case "+":
+                                {
+                                        return new ArithmeticBinary!"+"(lhs, rhs);
+                                }
+
+                                case "-":
+                                {
+                                        return new ArithmeticBinary!"-"(lhs, rhs);
+                                }
+
+                                case "*":
+                                {
+                                        return new ArithmeticBinary!"*"(lhs, rhs);
+                                }
+
+                                case "/":
+                                {
+                                        return new ArithmeticBinary!"/"(lhs, rhs);
+                                }
+
+                                case "%":
+                                {
+                                        return new ArithmeticBinary!"%"(lhs, rhs);
+                                }
+
+                                case "^":
+                                {
+                                        return new ArithmeticBinary!"^^"(lhs, rhs);
+                                }
+
+                                default:
+                                {
+                                        return null;
+                                }
+                        }
+                }
+
+                case "Funky.Unary":
+                {
+                        string op = p.children[0].match;
+                        auto rhs = cast(Arithmetic) p.children[1].toExpression;
+
+                        if (op == "+")
+                        {
+                                return new ArithmeticUnary!"+"(rhs);
+                        }
+                        if (op == "-")
+                        {
+                                return new ArithmeticUnary!"-"(rhs);
+                        }
+                        return null;
+                }
+
+                case "Funky.ArrayAccess":
+                {
+                        auto array = p.children[0].toExpression;
+                        auto index = p.children[1].toExpression;
+                        break;
+                }
+
+                case "Funky.ArrayLiteral":
+                {
+                        break;
+                }
+
+                case "Funky.ArraySlice":
+                {
+                        break;
+                }
+
+                case "Funky.AssignConstant",
+                     "Funky.AssignFunction",
+                     "Funky.AssignVariable":
+                {
+                        break;
+                }
+
+                case "Funky.BooleanLiteral":
+                {
+                        // return new Boolean(p.match);
+                        break;
+                }
+
+                case "Funky.Concatenation":
+                {
+                        break;
+                }
+
+                case "Funky.Conditional",
+                     "Funky.SafeConditional":
+                {
+                        break;
+                }
+
+                case "Funky.FunctionCall":
+                {
+                        break;
+                }
+
+                case "Funky.FunctionLiteral":
+                {
+                        break;
+                }
+
+                case "Funky.Identifier":
+                {
+                        if (p.match in variables)
+                        {
+                                return variables[p.match].value;
+                        }
+                        break;
+                }
+
+                case "Funky.Logical":
+                {
+                        break;
+                }
+
+                case "Funky.NumberLiteral":
+                {
+                        return new Number(p.match == "infinity" ? double.infinity : p.match.to!double);
+                }
+
+                case "Funky.ObjectLiteral":
+                {
+                        break;
+                }
+
+                case "Funky.ObjectFieldAccess":
+                {
+                        break;
+                }
+
+                case "Funky.StringLiteral":
+                {
+                        // return new String(p.match);
+                        break;
+                }
+        }
+        return null;
 }

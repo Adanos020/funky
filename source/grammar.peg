@@ -45,7 +45,7 @@ Funky:
                 Digit+                     # Sequence of digits.
                 ('.' Digit+)?              # Optional decimal point.
                 ('e' ('+' / '-')? Digit+)? # Optional scientific notation.
-        ) / KwordInfinity / KwordNaN
+        ) / ;KwordInfinity / ;KwordNaN
 
         BooleanLiteral <- KwordTrue / KwordFalse
 
@@ -89,6 +89,7 @@ Funky:
               | ArrayLiteral
               | ArraySlice
               | AssignConstant
+              | AssignFunction
               | AssignVariable
               | BooleanLiteral
               | Concatenation
@@ -110,7 +111,7 @@ Funky:
         Arithmetic < Sum
         Sum        < Product (OpSum Product)*
         Product    < Power (OpProduct Power)*
-        Power      < Unary (;OpPower Unary)*
+        Power      < Unary (OpPower Unary)*
         Unary      < OpSum? Primary
 
         Primary < '(' Arithmetic ')'
