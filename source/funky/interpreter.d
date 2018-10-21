@@ -186,7 +186,6 @@ ParseStatus interpret(string code)
 
                                 case "Funky.Identifier":
                                 {
-
                                         break;
                                 }
 
@@ -248,47 +247,54 @@ Expression toExpression(ParseTree p)
         {
                 case "Funky.Sum", "Funky.Product", "Funky.Power":
                 {
-                        string op = p.children[1].match;
                         auto lhs = cast(Arithmetic) p.children[0].toExpression;
-                        auto rhs = cast(Arithmetic) p.children[2].toExpression;
 
-                        switch (op)
+                        for (int i = 2; i < p.children.length; i += 2)
                         {
-                                case "+":
-                                {
-                                        return new ArithmeticBinary!"+"(lhs, rhs);
-                                }
+                                string op = p.children[i - 1].match;
+                                auto rhs = cast(Arithmetic) p.children[i].toExpression;
 
-                                case "-":
+                                final switch (op)
                                 {
-                                        return new ArithmeticBinary!"-"(lhs, rhs);
-                                }
+                                        case "+":
+                                        {
+                                                lhs = new ArithmeticBinary!"+"(lhs, rhs);
+                                                break;
+                                        }
 
-                                case "*":
-                                {
-                                        return new ArithmeticBinary!"*"(lhs, rhs);
-                                }
+                                        case "-":
+                                        {
+                                                lhs = new ArithmeticBinary!"-"(lhs, rhs);
+                                                break;
+                                        }
 
-                                case "/":
-                                {
-                                        return new ArithmeticBinary!"/"(lhs, rhs);
-                                }
+                                        case "*":
+                                        {
+                                                lhs = new ArithmeticBinary!"*"(lhs, rhs);
+                                                break;
+                                        }
 
-                                case "%":
-                                {
-                                        return new ArithmeticBinary!"%"(lhs, rhs);
-                                }
+                                        case "/":
+                                        {
+                                                lhs = new ArithmeticBinary!"/"(lhs, rhs);
+                                                break;
+                                        }
 
-                                case "^":
-                                {
-                                        return new ArithmeticBinary!"^^"(lhs, rhs);
-                                }
+                                        case "%":
+                                        {
+                                                lhs = new ArithmeticBinary!"%"(lhs, rhs);
+                                                break;
+                                        }
 
-                                default:
-                                {
-                                        return null;
+                                        case "^":
+                                        {
+                                                lhs = new ArithmeticBinary!"^^"(lhs, rhs);
+                                                break;
+                                        }
                                 }
                         }
+
+                        return lhs;
                 }
 
                 case "Funky.Unary":
