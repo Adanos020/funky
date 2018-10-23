@@ -132,16 +132,7 @@ ParseStatus interpret(string code)
 
                 if (valueTypes.canFind(p.name))
                 {
-                        if (Expression expr = p.toExpression)
-                        {
-                                term.writeln(expr.toString);
-                        }
-                        else
-                        {
-                                status = ParseStatus(StatusCode.FAILURE,
-                                        "Identifier `%s` is unknown.".format(p.match)
-                                );
-                        }
+                        term.writeln(p.toExpression);
                 }
 
                 bool constant = false;
@@ -150,9 +141,9 @@ ParseStatus interpret(string code)
                 {
                         case "Funky.Code":
                         {
-                                if (p.children.length)
+                                foreach (ref child; p.children)
                                 {
-                                        processTree(p.children[0]);
+                                        processTree(child);
                                 }
                                 break;
                         }
@@ -199,13 +190,14 @@ ParseStatus interpret(string code)
 
                         case "Funky.AssignConstant":
                         {
+                                term.writeln("Constant `%s` was assigned.".format(p.child.match));
                                 constant = true;
                                 goto case;
                         }
 
                         case "Funky.AssignFunction", "Funky.AssignVariable":
                         {
-                                string varname = p.children[0].match;
+                                string varname = p.child.match;
 
                                 if (varname in variables && variables[varname].constant)
                                 {
@@ -241,18 +233,37 @@ string match(ParseTree p)
         return p.matches[0];
 }
 
+ParseTree child(ParseTree p)
+{
+        return p.children[0];
+}
+
 Expression toExpression(ParseTree p)
 {
         final switch (p.name)
         {
                 case "Funky.Sum", "Funky.Product", "Funky.Power":
                 {
-                        auto lhs = cast(Arithmetic) p.children[0].toExpression;
+                        auto lhs = cast(Arithmetic) p.child.toExpression;
+                        if (!lhs)
+                        {
+                                return new InvalidExpr(
+                                        "`%s` is not of an arithmetic type."
+                                                .format(p.child.match)
+                                );
+                        }
 
                         for (int i = 2; i < p.children.length; i += 2)
                         {
                                 string op = p.children[i - 1].match;
                                 auto rhs = cast(Arithmetic) p.children[i].toExpression;
+                                if (!rhs)
+                                {
+                                        return new InvalidExpr(
+                                                "`%s` is not of an arithmetic type."
+                                                        .format(p.children[i].match)
+                                        );
+                                }
 
                                 final switch (op)
                                 {
@@ -302,15 +313,12 @@ Expression toExpression(ParseTree p)
                         string op = p.children[0].match;
                         auto rhs = cast(Arithmetic) p.children[1].toExpression;
 
-                        if (op == "+")
-                        {
-                                return rhs;
-                        }
                         if (op == "-")
                         {
                                 return new ArithmeticUnary!"-"(rhs);
                         }
-                        return null;
+                        // Unary `+` doesn't really change the value.
+                        return rhs;
                 }
 
                 case "Funky.ArrayAccess":
@@ -371,7 +379,9 @@ Expression toExpression(ParseTree p)
                         {
                                 return variables[p.match].value;
                         }
-                        break;
+                        return new InvalidExpr(
+                                "Identifier `%s` is unknown.".format(p.match)
+                        );
                 }
 
                 case "Funky.Logical":
@@ -396,9 +406,11 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.StringLiteral":
                 {
-                        // return new String(p.match);
-                        break;
+                        return new String(p.child.match);
                 }
         }
-        return null;
+
+        return new InvalidExpr(
+                "Unrecognised value type `%s`".format(p.name)
+        );
 }

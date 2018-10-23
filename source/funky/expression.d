@@ -12,6 +12,33 @@ interface Expression
 }
 
 
+// ERROR
+
+class InvalidExpr : Expression
+{
+public:
+
+        this(string whatsWrong)
+        {
+                this.whatsWrong = whatsWrong;
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        override string toString() const
+        {
+                return this.whatsWrong;
+        }
+
+private:
+
+        string whatsWrong;
+}
+
+
 // ARITHMETIC
 
 interface Arithmetic : Expression
@@ -146,4 +173,37 @@ private:
 
         Arithmetic lhs;
         Arithmetic rhs;
+}
+
+
+// STRING
+
+class String : Expression
+{
+public:
+
+        this(string str)
+        {
+                this.str = str;
+        }
+
+        String opBinary(string op)(inout Expression rhs)
+                if (op == "~")
+        {
+                return new String(this.str ~ rhs.toString);
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        override string toString() const
+        {
+                return this.str;
+        }
+
+private:
+
+        string str;
 }
