@@ -8,8 +8,7 @@ import std.string;
 
 void main(string[] args)
 {
-        auto term   = Terminal(ConsoleOutputType.linear);
-        auto events = RealTimeConsoleInput(&term, ConsoleInputFlags.raw);
+        auto term = Terminal(ConsoleOutputType.linear);
 
         init(&term);
         importModule("std/init");
@@ -37,8 +36,12 @@ void main(string[] args)
                 if (status.code != StatusCode.SUCCESS)
                 {
                         term.color(Color.red, Color.DEFAULT);
+                        if (status.extra.length)
+                        {
+                                status.extra = "\n" ~ status.extra;
+                        }
                         term.writefln(
-                                "Error in module `%s`, line %s: %s\n%s",
+                                "Error in %s, line %s: %s%s",
                                 status.moduleName,
                                 status.line,
                                 status.message,

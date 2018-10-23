@@ -61,6 +61,7 @@ private
         Terminal* term;
 }
 
+
 void init(Terminal* terminal)
 {
         term = terminal;
@@ -100,13 +101,17 @@ ParseStatus importModule(string modulePath)
         return code.interpret;
 }
 
-ParseStatus interpret(string code)
+ParseStatus interpret(string code, string moduleName = "console")
 {
         auto tree = Funky(code).trim;
 
         if (!tree.successful)
         {
-                return ParseStatus(StatusCode.FAILURE, tree.failMsg);
+                return ParseStatus(StatusCode.FAILURE,
+                        tree.failMsg,
+                        tree.position.line + 1,
+                        moduleName
+                );
         }
 
         debug
@@ -132,7 +137,17 @@ ParseStatus interpret(string code)
 
                 if (valueTypes.canFind(p.name))
                 {
-                        term.writeln(p.toExpression);
+                        Expression expr = p.toExpression;
+                        if (cast(InvalidExpr) expr)
+                        {
+                                status = ParseStatus(StatusCode.FAILURE,
+                                        expr.toString,
+                                        p.position.line + 1,
+                                        moduleName
+                                );
+                                return;
+                        }
+                        term.writeln(expr);
                 }
 
                 bool constant = false;
@@ -163,10 +178,11 @@ ParseStatus interpret(string code)
                                 {
                                         if (funcName == "exit" || funcName == "quit")
                                         {
-                                                status = ParseStatus(
-                                                        StatusCode.FAILURE,
+                                                status = ParseStatus(StatusCode.FAILURE,
                                                         "Function `%s` called with %s parameters while expecting 0"
-                                                                .format(funcName, p.children[1].children.length)
+                                                                .format(funcName, p.children[1].children.length),
+                                                        p.position.line + 1,
+                                                        moduleName
                                                 );
                                                 break;
                                         }
@@ -190,7 +206,6 @@ ParseStatus interpret(string code)
 
                         case "Funky.AssignConstant":
                         {
-                                term.writeln("Constant `%s` was assigned.".format(p.child.match));
                                 constant = true;
                                 goto case;
                         }
@@ -203,13 +218,26 @@ ParseStatus interpret(string code)
                                 {
                                         status = ParseStatus(StatusCode.FAILURE,
                                                 "Attempting to assign to a constant `%s`."
-                                                        .format(varname)
+                                                        .format(varname),
+                                                p.position.line + 1,
+                                                moduleName
                                         );
                                         constant = false;
                                         break;
                                 }
 
-                                variables[varname] = Variable(constant, p.children[1].toExpression);
+                                Expression expr = p.children[1].toExpression;
+                                if (cast(InvalidExpr) expr)
+                                {
+                                        status = ParseStatus(StatusCode.FAILURE,
+                                                expr.toString,
+                                                p.position.line + 1,
+                                                moduleName
+                                        );
+                                        return;
+                                }
+
+                                variables[varname] = Variable(constant, expr);
                                 constant = false;
                                 break;
                         }
@@ -226,7 +254,9 @@ ParseStatus interpret(string code)
         return status;
 }
 
+
 private:
+
 
 string match(ParseTree p)
 {
@@ -245,6 +275,7 @@ Expression toExpression(ParseTree p)
                 case "Funky.Sum", "Funky.Product", "Funky.Power":
                 {
                         auto lhs = cast(Arithmetic) p.child.toExpression;
+
                         if (!lhs)
                         {
                                 return new InvalidExpr(
@@ -255,8 +286,9 @@ Expression toExpression(ParseTree p)
 
                         for (int i = 2; i < p.children.length; i += 2)
                         {
-                                string op = p.children[i - 1].match;
+                                const(string) op = p.children[i - 1].match;
                                 auto rhs = cast(Arithmetic) p.children[i].toExpression;
+
                                 if (!rhs)
                                 {
                                         return new InvalidExpr(
@@ -310,8 +342,16 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.Unary":
                 {
-                        string op = p.children[0].match;
+                        const(string) op = p.children[0].match;
                         auto rhs = cast(Arithmetic) p.children[1].toExpression;
+
+                        if (!rhs)
+                        {
+                                return new InvalidExpr(
+                                        "`%s` is not of an arithmetic type."
+                                                .format(p.children[1].match)
+                                );
+                        }
 
                         if (op == "-")
                         {
@@ -379,9 +419,7 @@ Expression toExpression(ParseTree p)
                         {
                                 return variables[p.match].value;
                         }
-                        return new InvalidExpr(
-                                "Identifier `%s` is unknown.".format(p.match)
-                        );
+                        return new InvalidExpr("Identifier `%s` is unknown.".format(p.match));
                 }
 
                 case "Funky.Logical":
@@ -406,11 +444,10 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.StringLiteral":
                 {
+                        // Each StringLiteral has a StringContent child.
                         return new String(p.child.match);
                 }
         }
 
-        return new InvalidExpr(
-                "Unrecognised value type `%s`".format(p.name)
-        );
+        return new InvalidExpr("Unrecognised value type `%s`".format(p.name));
 }

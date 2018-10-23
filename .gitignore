@@ -13,7 +13,8 @@
 
 # Executables
 *.exe
-./funky
+funky
+!/source/funky
 
 # DUB
 .dub
