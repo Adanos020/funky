@@ -123,108 +123,108 @@ ParseStatus interpret(string code)
 
         auto status = ParseStatus(StatusCode.SUCCESS);
 
-        bool inFunctionDef = false;
-        bool constant = false;
-
         void processTree(ParseTree p)
         {
                 if (status.code == StatusCode.EXIT)
                 {
                         return;
                 }
-                
-                if (inFunctionDef) switch (p.name)
+
+                if (valueTypes.canFind(p.name))
                 {
-                        default:
+                        if (Expression expr = p.toExpression)
+                        {
+                                term.writeln(expr.toString);
+                        }
+                        else
+                        {
+                                status = ParseStatus(StatusCode.FAILURE,
+                                        "Identifier `%s` is unknown.".format(p.match)
+                                );
+                        }
+                }
+
+                bool constant = false;
+
+                switch (p.name)
+                {
+                        case "Funky.Code":
+                        {
+                                if (p.children.length)
+                                {
+                                        processTree(p.children[0]);
+                                }
+                                break;
+                        }
+
+                        case "Funky.FunctionCall":
+                        {
+                                string funcName = p.children[0].match;
+                                if (p.children.length == 1)
+                                {
+                                        if (funcName == "exit" || funcName == "quit")
+                                        {
+                                                status = ParseStatus(StatusCode.EXIT);
+                                                break;
+                                        }
+                                }
+                                else
+                                {
+                                        if (funcName == "exit" || funcName == "quit")
+                                        {
+                                                status = ParseStatus(
+                                                        StatusCode.FAILURE,
+                                                        "Function `%s` called with %s parameters while expecting 0"
+                                                                .format(funcName, p.children[1].children.length)
+                                                );
+                                                break;
+                                        }
+                                        auto args = p.children[1].children;
+                                        // TODO - call function
+                                }
+                                break;
+                        }
+
+                        case "Funky.Identifier":
                         {
                                 break;
                         }
-                }
-                else
-                {
-                        if (valueTypes.canFind(p.name))
+
+                        case "Funky.Import":
                         {
-                                Expression expr = p.toExpression;
-                                term.writeln(expr.toString);
+                                string path = p.children[0].match;
+                                status = importModule(path);
+                                break;
                         }
 
-                        switch (p.name)
+                        case "Funky.AssignConstant":
                         {
-                                case "Funky.Code":
+                                constant = true;
+                                goto case;
+                        }
+
+                        case "Funky.AssignFunction", "Funky.AssignVariable":
+                        {
+                                string varname = p.children[0].match;
+
+                                if (varname in variables && variables[varname].constant)
                                 {
-                                        processTree(p.children[0]);
-                                        break;
-                                }
-
-                                case "Funky.FunctionCall":
-                                {
-                                        string funcName = p.children[0].match;
-                                        if (p.children.length == 1)
-                                        {
-                                                if (funcName == "exit" || funcName == "quit")
-                                                {
-                                                        status = ParseStatus(StatusCode.EXIT);
-                                                        break;
-                                                }
-                                        }
-                                        else
-                                        {
-                                                if (funcName == "exit" || funcName == "quit")
-                                                {
-                                                        status = ParseStatus(
-                                                                StatusCode.FAILURE,
-                                                                "Function `%s` called with %s parameters while expecting 0"
-                                                                        .format(funcName, p.children[1].children.length)
-                                                        );
-                                                        break;
-                                                }
-                                                auto args = p.children[1].children;
-                                                // TODO - call function
-                                        }
-                                        break;
-                                }
-
-                                case "Funky.Identifier":
-                                {
-                                        break;
-                                }
-
-                                case "Funky.Import":
-                                {
-                                        string path = p.children[0].match;
-                                        status = importModule(path);
-                                        break;
-                                }
-
-                                case "Funky.ConstantAssignment":
-                                {
-                                        constant = true;
-                                        goto case;
-                                }
-
-                                case "Funky.FunctionAssignment", "Funky.VariableAssignment":
-                                {
-                                        string varname = p.children[0].match;
-
-                                        if (varname in variables && variables[varname].constant)
-                                        {
-                                                status = ParseStatus(StatusCode.FAILURE,
-                                                        "Attempting to assign to a constant `%s`."
-                                                                .format(varname)
-                                                );
-                                                constant = false;
-                                                break;
-                                        }
-
-                                        variables[varname] = Variable(constant, p.children[1].toExpression);
+                                        status = ParseStatus(StatusCode.FAILURE,
+                                                "Attempting to assign to a constant `%s`."
+                                                        .format(varname)
+                                        );
                                         constant = false;
                                         break;
                                 }
 
-                                default:
-                                {
-                                        break;
-                                }
+                                variables[varname] = Variable(constant, p.children[1].toExpression);
+                                constant = false;
+                                break;
+                        }
+
+                        default:
+                        {
+                                break;
                         }
                 }
         }
@@ -304,7 +304,7 @@ Expression toExpression(ParseTree p)
 
                         if (op == "+")
                         {
-                                return new ArithmeticUnary!"+"(rhs);
+                                return rhs;
                         }
                         if (op == "-")
                         {
@@ -317,6 +317,7 @@ Expression toExpression(ParseTree p)
                 {
                         auto array = p.children[0].toExpression;
                         auto index = p.children[1].toExpression;
+                        // TODO - access the element
                         break;
                 }
 

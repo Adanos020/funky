@@ -1,16 +1,18 @@
 Funky:
 
-        Code    < Element* !.
-        Element < Comment / Import / Assignment / Value / Unknown
+        Code    < Element* EOF
+        Element < Comment / Import / Assignment / Expression / Unknown
 
-        NewLine <: '\r\n' / '\r' / '\n'
-        Whites  <: ' ' / '\t' / NewLine
+        EOL    <: '\r\n' / '\r' / '\n'
+        Whites <: ' ' / '\t' / EOL
+        EOF    <: !.
+
         Spacing <: (Comment / Whites)*
-        Comment <: "--" (!NewLine .)* NewLine
+        Comment <: "--" (!EOL !EOF .)* (EOL / EOF)
 
         List(What) < What ([,] What)*
 
-        Unknown <~ (!NewLine .)* NewLine
+        Unknown <~ (!EOL .)* EOL
 
 # Imports.
 
@@ -52,39 +54,39 @@ Funky:
         StringContent <~ (!["] ('\\' ["] / .))*
         StringLiteral <- ["] StringContent ["]
 
-        ArrayContent < List(Value){ trimOnce }
+        ArrayContent < List(Expression){ trimOnce }
         ArrayLiteral < '[' ArrayContent? ']'
-        ArrayAccess  < (ArrayLiteral / SafeConditional / VagueValue) '[' ArrayIndexValue ']'
-        ArraySlice   < (ArrayLiteral / SafeConditional / VagueValue) '[' (
+        ArrayAccess  < (ArrayLiteral / SafeConditional / VagueExpression) '[' ArrayIndexValue ']'
+        ArraySlice   < (ArrayLiteral / SafeConditional / VagueExpression) '[' (
                 ArrayIndexValue OpRange ArrayIndexValue /
                 ArrayIndexValue OpRange                 /
                                 OpRange ArrayIndexValue
         ) ']'
 
-        ArrayIndexValue < Arithmetic / Conditional / VagueValue
+        ArrayIndexValue < Arithmetic / Conditional / VagueExpression
 
         OpConcatenate <- "~"
-        JoinableValue < StringLiteral / ArrayLiteral / ArraySlice / SafeConditional / VagueValue
-        Concatenation < JoinableValue (;OpConcatenate Value)+
+        JoinableValue < StringLiteral / ArrayLiteral / ArraySlice / SafeConditional / VagueExpression
+        Concatenation < JoinableValue (;OpConcatenate Expression)+
 
-        FunctionLiteral      < ('(' ArgumentDeclarations? ')' / Identifier) (':' FunctionLocals)? ;OpReturn Value
-        FunctionCall         < ('(' FunctionLiteral ')' / SafeConditional / VagueValue) '(' FunctionArguments? ')'
+        FunctionLiteral      < ('(' ArgumentDeclarations? ')' / Identifier) (':' FunctionLocals)? ;OpReturn Expression
+        FunctionCall         < ('(' FunctionLiteral ')' / SafeConditional / VagueExpression) '(' FunctionArguments? ')'
         FunctionLocals       < List(Assignment){ trimOnce }
         ArgumentDeclarations < List(Identifier){ trimOnce }
-        FunctionArguments    < List(Value){ trimOnce }
+        FunctionArguments    < List(Expression){ trimOnce }
 
         OpAccess <- "::"
 
         ObjectFields      < List(Assignment){ trimOnce }
         ObjectLiteral     < '{' ObjectFields? '}'
-        ObjectFieldAccess < (ObjectLiteral / SafeConditional / VagueValue) ;OpAccess Identifier
+        ObjectFieldAccess < (ObjectLiteral / SafeConditional / VagueExpression) ;OpAccess Identifier
 
-        VagueValue < FunctionCall
-                   / ArrayAccess
-                   / ObjectFieldAccess
-                   / Identifier
+        VagueExpression < FunctionCall
+                        / ArrayAccess
+                        / ObjectFieldAccess
+                        / Identifier
 
-        Value < '(' Value ')'
+        Expression < '(' Expression ')'
               | Arithmetic
               | ArrayLiteral
               | ArraySlice
@@ -100,7 +102,7 @@ Funky:
               | ObjectLiteral
               | SafeConditional
               | StringLiteral
-              | VagueValue
+              | VagueExpression
 
 # Arithmetic.
 
@@ -116,7 +118,7 @@ Funky:
 
         Primary < '(' Arithmetic ')'
                 | NumberLiteral
-                | VagueValue
+                | VagueExpression
                 | SafeConditional
 
 # Logical.
@@ -137,10 +139,10 @@ Funky:
         Boolean < '(' Logical ')'
                 | Comparison
                 | BooleanLiteral
-                | VagueValue
+                | VagueExpression
                 | SafeConditional
 
-        Conditional     < Logical ;OpIf Value ;OpElse Value
+        Conditional     < Logical ;OpIf Expression ;OpElse Expression
         SafeConditional < '(' Conditional ')'
 
 # Comparisons.
@@ -159,7 +161,7 @@ Funky:
                         | ObjectLiteral
                         | StringLiteral
                         | SafeConditional
-                        | VagueValue
+                        | VagueExpression
 
         Comparison < ComparableValue OpCmp ComparableValue ((OpError / OpRange) ComparableValue)?
                    | ComparableValue (OpCmp Comparison{ trimOnce })+
@@ -170,7 +172,7 @@ Funky:
         OpVariable <- "<-"
         OpConstant <- "<<"
 
-        Assign(Op) < VagueValue ;Op Value
+        Assign(Op) < VagueExpression ;Op Expression
 
         AssignConstant < Assign(OpConstant)
         AssignVariable < Assign(OpVariable)
