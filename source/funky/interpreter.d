@@ -383,13 +383,13 @@ Expression toExpression(ParseTree p)
                      "Funky.AssignFunction",
                      "Funky.AssignVariable":
                 {
-                        break;
+                        // TODO - make the assigned assignment actually assign.
+                        return p.children[1].toExpression;
                 }
 
                 case "Funky.BooleanLiteral":
                 {
-                        // return new Boolean(p.match);
-                        break;
+                        return new Boolean(p.match.to!bool);
                 }
 
                 case "Funky.Concatenation":
@@ -397,8 +397,7 @@ Expression toExpression(ParseTree p)
                         break;
                 }
 
-                case "Funky.Conditional",
-                     "Funky.SafeConditional":
+                case "Funky.Conditional":
                 {
                         break;
                 }
@@ -422,9 +421,69 @@ Expression toExpression(ParseTree p)
                         return new InvalidExpr("Identifier `%s` is unknown.".format(p.match));
                 }
 
-                case "Funky.Logical":
+                case "Funky.Or", "Funky.And", "Funky.Xor":
                 {
-                        break;
+                        auto lhs = cast(Logical) p.child.toExpression;
+
+                        if (!lhs)
+                        {
+                                return new InvalidExpr(
+                                        "`%s` is not of a logical type."
+                                                .format(p.child.match)
+                                );
+                        }
+
+                        for (int i = 2; i < p.children.length; i += 2)
+                        {
+                                const(string) op = p.children[i - 1].match;
+                                auto rhs = cast(Logical) p.children[i].toExpression;
+
+                                if (!rhs)
+                                {
+                                        return new InvalidExpr(
+                                                "`%s` is not of a logical type."
+                                                        .format(p.children[i].match)
+                                        );
+                                }
+
+                                final switch (op)
+                                {
+                                        case "|":
+                                        {
+                                                lhs = new LogicalBinary!"||"(lhs, rhs);
+                                                break;
+                                        }
+
+                                        case "&":
+                                        {
+                                                lhs = new LogicalBinary!"&&"(lhs, rhs);
+                                                break;
+                                        }
+
+                                        case "@":
+                                        {
+                                                lhs = new LogicalBinary!"^"(lhs, rhs);
+                                                break;
+                                        }
+                                }
+                        }
+
+                        return lhs;
+                }
+
+                case "Funky.Not":
+                {
+                        auto rhs = cast(Logical) p.children[1].toExpression;
+
+                        if (!rhs)
+                        {
+                                return new InvalidExpr(
+                                        "`%s` is not of an arithmetic type."
+                                                .format(p.children[1].match)
+                                );
+                        }
+
+                        return new LogicalUnary!"!"(rhs);
                 }
 
                 case "Funky.NumberLiteral":

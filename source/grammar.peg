@@ -49,7 +49,7 @@ Funky:
                 ('e' ('+' / '-')? Digit+)? # Optional scientific notation.
         ) / ;KwordInfinity / ;KwordNaN
 
-        BooleanLiteral <- KwordTrue / KwordFalse
+        BooleanLiteral <- ;KwordTrue / ;KwordFalse
 
         StringContent <~ (!["] ('\\' ["] / .))*
         StringLiteral <- ["] StringContent ["]
@@ -131,9 +131,9 @@ Funky:
         OpElse <- !OpAccess ":"
 
         Logical < And
-        And     < Xor (;OpAnd Xor)*
-        Xor     < Or  (;OpXor Or )*
-        Or      < Not (;OpOr  Not)*
+        And     < Xor (OpAnd Xor)*
+        Xor     < Or  (OpXor Or )*
+        Or      < Not (OpOr  Not)*
         Not     < OpNot? Boolean
 
         Boolean < '(' Logical ')'

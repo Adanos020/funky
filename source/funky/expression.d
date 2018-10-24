@@ -39,6 +39,111 @@ private:
 }
 
 
+// OPERATORS
+
+class Unary(Value, BaseValue, Primitive, string OP, string[] unOps, string[] binOps) : Value
+        if (unOps.canFind(OP))
+{
+public:
+
+        this(Value rhs)
+        {
+                this.rhs = rhs;
+        }
+
+        override Expression evaluate() const
+        {
+                static if (is(Value == Logical))
+                {
+                        return mixin("new BaseValue(" ~ OP ~ "this.rhs.value)");                        
+                }
+                else
+                {
+                        return cast(Expression) mixin(OP ~ "(cast(BaseValue) this.rhs)");
+                }
+        }
+
+        BaseValue opUnary(string op)() const
+                if (unOps.canFind(op))
+        {
+                return new BaseValue(mixin(op ~ "this.value"));
+        }
+
+        BaseValue opBinary(string op)(inout Value rhs) const
+                if (binOps.canFind(op))
+        {
+                return new BaseValue(mixin("this.value" ~ op ~ "rhs.value"));
+        }
+
+        @property override Primitive value() const
+        {
+                return (cast(Value) this.evaluate).value;
+        }
+
+        override string toString() const
+        {
+                return this.value.to!string;
+        }
+
+private:
+
+        Value rhs;
+}
+
+class Binary(Value, BaseValue, Primitive, string OP, string[] unOps, string[] binOps) : Value
+        if (binOps.canFind(OP))
+{
+public:
+
+        this(Value lhs, Value rhs)
+        {
+                this.lhs = lhs;
+                this.rhs = rhs;
+        }
+
+        override Expression evaluate() const
+        {
+                static if (is(Value == Logical))
+                {
+                        return mixin("new BaseValue(this.lhs.value" ~ OP ~ "this.rhs.value)");
+                }
+                else
+                {
+                        return cast(Expression) mixin(
+                                "((cast(BaseValue) this.lhs.evaluate)" ~ OP ~ "(cast(BaseValue) this.rhs.evaluate))"
+                        );
+                }
+        }
+
+        BaseValue opUnary(string op)() const
+                if (op == "+" || op == "-")
+        {
+                return new BaseValue(mixin(op ~ "this.value"));
+        }
+
+        BaseValue opBinary(string op)(inout Value rhs) const
+                if (["+", "-", "*", "/", "%", "^^"].canFind(op))
+        {
+                return new BaseValue(mixin("this.value" ~ op ~ "rhs.value"));
+        }
+
+        @property override Primitive value() const
+        {
+                return (cast(Value) this.evaluate).value;
+        }
+
+        override string toString() const
+        {
+                return this.value.to!string;
+        }
+
+private:
+
+        Value lhs;
+        Value rhs;
+}
+
+
 // ARITHMETIC
 
 interface Arithmetic : Expression
@@ -87,93 +192,60 @@ private:
         double val;
 }
 
-class ArithmeticUnary(string OP) : Arithmetic
-        if (OP == "+" || OP == "-")
+alias ArithmeticUnary(string op)  =  Unary!(Arithmetic, Number, double, op, ["+", "-"], ["+", "-", "*", "/", "%", "^^"]);
+alias ArithmeticBinary(string op) = Binary!(Arithmetic, Number, double, op, ["+", "-"], ["+", "-", "*", "/", "%", "^^"]);
+
+
+// LOGICAL
+
+interface Logical : Expression
+{
+        bool value() const;
+}
+
+class Boolean : Logical
 {
 public:
 
-        this(Arithmetic rhs)
+        this(bool val)
         {
-                this.rhs = rhs;
+                this.val = val;
         }
 
         override Expression evaluate() const
         {
-                return cast(Expression) mixin(OP ~ "(cast(Number) this.rhs)");
+                return cast(Expression) this;
         }
 
-        Number opUnary(string op)() const
-                if (op == "+" || op == "-")
+        Boolean opUnary(string op)() const
+                if (op == "!")
         {
-                return new Number(mixin(op ~ "this.value"));
+                return new Boolean(!this.val);
         }
 
-        Number opBinary(string op)(inout Arithmetic rhs) const
-                if (["+", "-", "*", "/", "%", "^^"].canFind(op))
+        Boolean opBinary(string op)(inout Logical rhs) const
+                if (op == "|" || op == "&" || op == "^")
         {
-                return new Number(mixin("this.value" ~ op ~ "rhs.value"));
+                return new Boolean(mixin("this.value" ~ op ~ "rhs.value"));
         }
 
-        @property override double value() const
+        override bool value() const
         {
-                return (cast(Arithmetic) this.evaluate).value;
+                return this.val;
         }
 
         override string toString() const
         {
-                return this.value.to!string;
+                return this.val.to!string;
         }
 
 private:
 
-        Arithmetic rhs;
+        bool val;
 }
 
-class ArithmeticBinary(string OP) : Arithmetic
-        if (["+", "-", "*", "/", "%", "^^"].canFind(OP))
-{
-public:
-
-        this(Arithmetic lhs, Arithmetic rhs)
-        {
-                this.lhs = lhs;
-                this.rhs = rhs;
-        }
-
-        override Expression evaluate() const
-        {
-                return cast(Expression) mixin(
-                        "((cast(Number) this.lhs.evaluate)" ~ OP ~ "(cast(Number) this.rhs.evaluate))"
-                );
-        }
-
-        Number opUnary(string op)() const
-                if (op == "+" || op == "-")
-        {
-                return new Number(mixin(op ~ "this.value"));
-        }
-
-        Number opBinary(string op)(inout Arithmetic rhs) const
-                if (["+", "-", "*", "/", "%", "^^"].canFind(op))
-        {
-                return new Number(mixin("this.value" ~ op ~ "rhs.value"));
-        }
-
-        @property override double value() const
-        {
-                return (cast(Arithmetic) this.evaluate).value;
-        }
-
-        override string toString() const
-        {
-                return this.value.to!string;
-        }
-
-private:
-
-        Arithmetic lhs;
-        Arithmetic rhs;
-}
+alias LogicalUnary(string op)  =  Unary!(Logical, Boolean, bool, op, ["!"], ["||", "&&", "^"]);
+alias LogicalBinary(string op) = Binary!(Logical, Boolean, bool, op, ["!"], ["||", "&&", "^"]);
 
 
 // STRING
