@@ -39,213 +39,185 @@ private:
 }
 
 
-// OPERATORS
+// VALUES AND OPERATORS
 
-class Unary(Value, BaseValue, Primitive, string OP, string[] unOps, string[] binOps) : Value
-        if (unOps.canFind(OP))
+mixin template ValueType(string Value, string BaseValue, Primitive, string[] unOps, string[] binOps)
 {
-public:
-
-        this(Value rhs)
-        {
-                this.rhs = rhs;
-        }
-
-        override Expression evaluate() const
-        {
-                static if (is(Value == Logical))
+        mixin(`
+                interface ` ~ Value ~ ` : Expression
                 {
-                        return mixin("new BaseValue(" ~ OP ~ "this.rhs.value)");                        
+                        Primitive value() const;
                 }
-                else
+
+                class ` ~ BaseValue ~ ` : ` ~ Value ~ `
                 {
-                        return cast(Expression) mixin(OP ~ "(cast(BaseValue) this.rhs)");
+                public:
+
+                        this(Primitive val)
+                        {
+                                this.val = val;
+                        }
+
+                        override Expression evaluate() const
+                        {
+                                return cast(Expression) this;
+                        }
+
+                        ` ~ BaseValue ~ ` opUnary(string op)() const
+                                if (unOps.canFind(op))
+                        {
+                                return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
+                        }
+
+                        ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
+                                if (binOps.canFind(op))
+                        {
+                                return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
+                        }
+
+                        @property override Primitive value() const
+                        {
+                                return this.val;
+                        }
+
+                        override string toString() const
+                        {
+                                static if (is(Primitive == string))
+                                {
+                                        return this.val;
+                                }
+                                else
+                                {
+                                        return this.val.to!string;
+                                }
+                        }
+
+                private:
+
+                        Primitive val;
                 }
-        }
 
-        BaseValue opUnary(string op)() const
-                if (unOps.canFind(op))
-        {
-                return new BaseValue(mixin(op ~ "this.value"));
-        }
-
-        BaseValue opBinary(string op)(inout Value rhs) const
-                if (binOps.canFind(op))
-        {
-                return new BaseValue(mixin("this.value" ~ op ~ "rhs.value"));
-        }
-
-        @property override Primitive value() const
-        {
-                return (cast(Value) this.evaluate).value;
-        }
-
-        override string toString() const
-        {
-                return this.value.to!string;
-        }
-
-private:
-
-        Value rhs;
-}
-
-class Binary(Value, BaseValue, Primitive, string OP, string[] unOps, string[] binOps) : Value
-        if (binOps.canFind(OP))
-{
-public:
-
-        this(Value lhs, Value rhs)
-        {
-                this.lhs = lhs;
-                this.rhs = rhs;
-        }
-
-        override Expression evaluate() const
-        {
-                static if (is(Value == Logical))
+                static if (unOps.length)
+                class ` ~ Value ~ `Unary(string OP) if (unOps.canFind(OP)) : ` ~ Value ~ `
                 {
-                        return mixin("new BaseValue(this.lhs.value" ~ OP ~ "this.rhs.value)");
+                public:
+
+                        this(` ~ Value ~ ` rhs)
+                        {
+                                this.rhs = rhs;
+                        }
+
+                        override Expression evaluate() const
+                        {
+                                static if (is(` ~ Value ~ ` == Logical))
+                                {
+                                        return mixin("new ` ~ BaseValue ~ `(" ~ OP ~ "this.rhs.value)");                        
+                                }
+                                else
+                                {
+                                        return cast(Expression) mixin(OP ~ "(cast(` ~ BaseValue ~ `) this.rhs)");
+                                }
+                        }
+
+                        ` ~ BaseValue ~ ` opUnary(string op)() const
+                                if (unOps.canFind(op))
+                        {
+                                return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
+                        }
+
+                        ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
+                                if (binOps.canFind(op))
+                        {
+                                return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
+                        }
+
+                        @property override Primitive value() const
+                        {
+                                return (cast(` ~ Value ~ `) this.evaluate).value;
+                        }
+
+                        override string toString() const
+                        {
+                                static if (is(Primitive == string))
+                                {
+                                        return this.value;
+                                }
+                                else
+                                {
+                                        return this.value.to!string;
+                                }
+                        }
+
+                private:
+
+                        ` ~ Value ~ ` rhs;
                 }
-                else
+
+                static if (binOps.length)
+                class ` ~ Value ~ `Binary(string OP) : ` ~ Value ~ `
+                        if (binOps.canFind(OP))
                 {
-                        return cast(Expression) mixin(
-                                "((cast(BaseValue) this.lhs.evaluate)" ~ OP ~ "(cast(BaseValue) this.rhs.evaluate))"
-                        );
+                public:
+
+                        this(` ~ Value ~ ` lhs, ` ~ Value ~ ` rhs)
+                        {
+                                this.lhs = lhs;
+                                this.rhs = rhs;
+                        }
+
+                        override Expression evaluate() const
+                        {
+                                static if (is(` ~ Value ~ ` == Logical))
+                                {
+                                        return mixin("new ` ~ BaseValue ~ `(this.lhs.value" ~ OP ~ "this.rhs.value)");
+                                }
+                                else
+                                {
+                                        return cast(Expression) mixin(
+                                                "((cast(` ~ BaseValue ~ `) this.lhs.evaluate)" ~ OP ~ "(cast(` ~ BaseValue ~ `) this.rhs.evaluate))"
+                                        );
+                                }
+                        }
+
+                        ` ~ BaseValue ~ ` opUnary(string op)() const
+                                if (unOps.canFind(op))
+                        {
+                                return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
+                        }
+
+                        ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
+                                if (binOps.canFind(op))
+                        {
+                                return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
+                        }
+
+                        @property override Primitive value() const
+                        {
+                                return (cast(` ~ Value ~ `) this.evaluate).value;
+                        }
+
+                        override string toString() const
+                        {
+                                static if (is(Primitive == string))
+                                {
+                                        return this.value;
+                                }
+                                else
+                                {
+                                        return this.value.to!string;
+                                }
+                        }
+
+                private:
+
+                        ` ~ Value ~ ` lhs;
+                        ` ~ Value ~ ` rhs;
                 }
-        }
-
-        BaseValue opUnary(string op)() const
-                if (op == "+" || op == "-")
-        {
-                return new BaseValue(mixin(op ~ "this.value"));
-        }
-
-        BaseValue opBinary(string op)(inout Value rhs) const
-                if (["+", "-", "*", "/", "%", "^^"].canFind(op))
-        {
-                return new BaseValue(mixin("this.value" ~ op ~ "rhs.value"));
-        }
-
-        @property override Primitive value() const
-        {
-                return (cast(Value) this.evaluate).value;
-        }
-
-        override string toString() const
-        {
-                return this.value.to!string;
-        }
-
-private:
-
-        Value lhs;
-        Value rhs;
+        `);
 }
 
-
-// ARITHMETIC
-
-interface Arithmetic : Expression
-{
-        double value() const;
-}
-
-class Number : Arithmetic
-{
-public:
-
-        this(double val)
-        {
-                this.val = val;
-        }
-
-        override Expression evaluate() const
-        {
-                return cast(Expression) this;
-        }
-
-        Number opUnary(string op)() const
-                if (op == "+" || op == "-")
-        {
-                return new Number(mixin(op ~ "this.value"));
-        }
-
-        Number opBinary(string op)(inout Arithmetic rhs) const
-                if (["+", "-", "*", "/", "%", "^^"].canFind(op))
-        {
-                return new Number(mixin("this.value" ~ op ~ "rhs.value"));
-        }
-
-        @property override double value() const
-        {
-                return this.val;
-        }
-
-        override string toString() const
-        {
-                return this.val.to!string;
-        }
-
-private:
-
-        double val;
-}
-
-alias ArithmeticUnary(string op)  =  Unary!(Arithmetic, Number, double, op, ["+", "-"], ["+", "-", "*", "/", "%", "^^"]);
-alias ArithmeticBinary(string op) = Binary!(Arithmetic, Number, double, op, ["+", "-"], ["+", "-", "*", "/", "%", "^^"]);
-
-
-// LOGICAL
-
-interface Logical : Expression
-{
-        bool value() const;
-}
-
-class Boolean : Logical
-{
-public:
-
-        this(bool val)
-        {
-                this.val = val;
-        }
-
-        override Expression evaluate() const
-        {
-                return cast(Expression) this;
-        }
-
-        Boolean opUnary(string op)() const
-                if (op == "!")
-        {
-                return new Boolean(!this.val);
-        }
-
-        Boolean opBinary(string op)(inout Logical rhs) const
-                if (op == "|" || op == "&" || op == "^")
-        {
-                return new Boolean(mixin("this.value" ~ op ~ "rhs.value"));
-        }
-
-        override bool value() const
-        {
-                return this.val;
-        }
-
-        override string toString() const
-        {
-                return this.val.to!string;
-        }
-
-private:
-
-        bool val;
-}
-
-alias LogicalUnary(string op)  =  Unary!(Logical, Boolean, bool, op, ["!"], ["||", "&&", "^"]);
-alias LogicalBinary(string op) = Binary!(Logical, Boolean, bool, op, ["!"], ["||", "&&", "^"]);
+mixin ValueType!("Arithmetic", "Number",  double, ["+", "-"], ["+", "-", "*", "/", "%", "^^"]);
+mixin ValueType!("Logical",    "Boolean", bool,   ["!"],      ["||", "&&", "^"]);
 
 
 // STRING
