@@ -98,7 +98,7 @@ ParseStatus importModule(string modulePath)
 
         string code = readText(modulePath ~ fileExtension);
         importedModules ~= modulePath;
-        return code.interpret;
+        return code.interpret(modulePath);
 }
 
 ParseStatus interpret(string code, string moduleName = "console")
@@ -270,7 +270,7 @@ ParseTree child(ParseTree p)
 
 Expression toExpression(ParseTree p)
 {
-        final switch (p.name)
+        switch (p.name)
         {
                 case "Funky.Sum", "Funky.Product", "Funky.Power":
                 {
@@ -397,9 +397,51 @@ Expression toExpression(ParseTree p)
                         break;
                 }
 
+                case "Funky.Comparison":
+                {
+                        Expression[] compared;
+                        string[] ops;
+
+                        foreach (i, child; p.children)
+                        {
+                                // The odd indices belong to operators
+                                if (i & 1)
+                                {
+                                        ops ~= child.match;
+                                }
+                                // and the even ones to expressions.
+                                else
+                                {
+                                        compared ~= child.toExpression;
+                                }
+                        }
+
+                        return new Comparison(compared, ops);
+                }
+
                 case "Funky.Conditional":
                 {
                         break;
+                }
+
+                case "Funky.Error":
+                {
+                        auto value = cast(Number) p.children[0].toExpression.evaluate;
+                        auto error = cast(Number) p.children[1].toExpression.evaluate;
+
+                        string notNumericError = "Value `%s` used in a range expression is not of numeric type.";
+                        if (!value)
+                        {
+                                return new InvalidExpr(notNumericError.format(value));
+                        }
+                        if (!error)
+                        {
+                                return new InvalidExpr(notNumericError.format(error));
+                        }
+
+                        double v = value.value;
+                        double e = error.value;
+                        return new Range(v - e, v + e, true);
                 }
 
                 case "Funky.FunctionCall":
@@ -501,10 +543,37 @@ Expression toExpression(ParseTree p)
                         break;
                 }
 
+                case "Funky.Range":
+                {
+                        auto lower = cast(Number) p.children[0].toExpression.evaluate;
+                        auto upper = cast(Number) p.children[2].toExpression.evaluate;
+
+                        string notNumericError = "Value `%s` used in a range expression is not of numeric type.";
+                        if (!lower)
+                        {
+                                return new InvalidExpr(notNumericError.format(lower));
+                        }
+                        if (!upper)
+                        {
+                                return new InvalidExpr(notNumericError.format(upper));
+                        }
+
+                        if (p.children[1].match == "...")
+                        {
+                                return new Range(lower.value, upper.value, true);
+                        }
+                        return new Range(lower.value, upper.value);
+                }
+
                 case "Funky.StringLiteral":
                 {
                         // Each StringLiteral has a StringContent child.
                         return new String(p.child.match);
+                }
+
+                default:
+                {
+                        return new InvalidExpr("Unrecognised value type `%s`".format(p.name));
                 }
         }
 

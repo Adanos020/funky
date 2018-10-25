@@ -1,8 +1,10 @@
 module funky.expression;
 
 
+import std.algorithm.comparison;
 import std.algorithm.searching;
 import std.conv;
+import std.string;
 
 
 interface Expression
@@ -41,7 +43,7 @@ private:
 
 // VALUES AND OPERATORS
 
-mixin template ValueType(string Value, string BaseValue, Primitive, string[] unOps, string[] binOps)
+mixin template ValueType(string Value, string BaseValue, Primitive, string[] BinOps = [], string[] UnOps = [])
 {
         mixin(`
                 interface ` ~ Value ~ ` : Expression
@@ -63,16 +65,38 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] unO
                                 return cast(Expression) this;
                         }
 
+                        static if (UnOps.length)
                         ` ~ BaseValue ~ ` opUnary(string op)() const
-                                if (unOps.canFind(op))
+                                if (UnOps.canFind(op))
                         {
                                 return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
                         }
 
+                        static if (BinOps.length)
                         ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
-                                if (binOps.canFind(op))
+                                if (BinOps.canFind(op))
                         {
                                 return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
+                        }
+
+                        override bool opEquals(Object o) const
+                        {
+                                if (!cast(Expression) o) { return false; }
+                                auto rhs = cast(` ~ BaseValue ~ `) (cast(Expression) o).evaluate;
+                                return rhs && rhs.value == this.value;
+                        }
+
+                        int opCmp()(inout Expression rhs) const
+                        {
+                                if (!rhs || !cast(`~ BaseValue ~`) rhs.evaluate) { return -1; }
+                                static if (is(Primitive == double))
+                                {
+                                        return cast(int)(this.value - (cast(`~ BaseValue ~`) rhs.evaluate).value);
+                                }
+                                else
+                                {
+                                        return (cast(`~ BaseValue ~`) rhs.evaluate).value.cmp(this.value);
+                                }
                         }
 
                         @property override Primitive value() const
@@ -97,8 +121,9 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] unO
                         Primitive val;
                 }
 
-                static if (unOps.length)
-                class ` ~ Value ~ `Unary(string OP) if (unOps.canFind(OP)) : ` ~ Value ~ `
+                static if (UnOps.length)
+                class ` ~ Value ~ `Unary(string OP) : ` ~ Value ~ `
+                        if (UnOps.canFind(OP))
                 {
                 public:
 
@@ -119,16 +144,38 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] unO
                                 }
                         }
 
+                        static if (UnOps.length)
                         ` ~ BaseValue ~ ` opUnary(string op)() const
-                                if (unOps.canFind(op))
+                                if (UnOps.canFind(op))
                         {
                                 return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
                         }
 
+                        static if (BinOps.length)
                         ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
-                                if (binOps.canFind(op))
+                                if (BinOps.canFind(op))
                         {
                                 return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
+                        }
+
+                        override bool opEquals(Object o) const
+                        {
+                                if (!cast(Expression) rhs) { return false; }
+                                auto res = cast(` ~ BaseValue ~ `) (cast(Expression) rhs).evaluate;
+                                return res && res.value == this.value;
+                        }
+
+                        override int opCmp()(inout Expression rhs) const
+                        {
+                                if (!rhs || !cast(`~ BaseValue ~`) rhs.evaluate) { return -1; }
+                                static if (is(Primitive == double))
+                                {
+                                        return cast(int)(this.value - (cast(`~ BaseValue ~`) rhs.evaluate).value);
+                                }
+                                else
+                                {
+                                        return (cast(`~ BaseValue ~`) rhs.evaluate).value.cmp(this.value);
+                                }
                         }
 
                         @property override Primitive value() const
@@ -153,9 +200,9 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] unO
                         ` ~ Value ~ ` rhs;
                 }
 
-                static if (binOps.length)
+                static if (BinOps.length)
                 class ` ~ Value ~ `Binary(string OP) : ` ~ Value ~ `
-                        if (binOps.canFind(OP))
+                        if (BinOps.canFind(OP))
                 {
                 public:
 
@@ -174,21 +221,44 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] unO
                                 else
                                 {
                                         return cast(Expression) mixin(
-                                                "((cast(` ~ BaseValue ~ `) this.lhs.evaluate)" ~ OP ~ "(cast(` ~ BaseValue ~ `) this.rhs.evaluate))"
+                                                "((cast(` ~ BaseValue ~ `) this.lhs.evaluate)" ~ OP ~
+                                                 "(cast(` ~ BaseValue ~ `) this.rhs.evaluate))"
                                         );
                                 }
                         }
 
+                        static if (UnOps.length)
                         ` ~ BaseValue ~ ` opUnary(string op)() const
-                                if (unOps.canFind(op))
+                                if (UnOps.canFind(op))
                         {
                                 return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
                         }
 
+                        static if (BinOps.length)
                         ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
-                                if (binOps.canFind(op))
+                                if (BinOps.canFind(op))
                         {
                                 return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
+                        }
+
+                        override bool opEquals(Object o) const
+                        {
+                                if (!cast(Expression) rhs) { return false; }
+                                auto res = cast(` ~ BaseValue ~ `) (cast(Expression) rhs).evaluate;
+                                return res && res.value == this.value;
+                        }
+
+                        override int opCmp()(inout Expression rhs) const
+                        {
+                                if (!rhs || !cast(`~ BaseValue ~`) rhs.evaluate) { return -1; }
+                                static if (is(Primitive == double))
+                                {
+                                        return cast(int)(this.value - (cast(`~ BaseValue ~`) rhs.evaluate).value);
+                                }
+                                else
+                                {
+                                        return (cast(`~ BaseValue ~`) rhs.evaluate).value.cmp(this.value);
+                                }
                         }
 
                         @property override Primitive value() const
@@ -216,8 +286,184 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] unO
         `);
 }
 
-mixin ValueType!("Arithmetic", "Number",  double, ["+", "-"], ["+", "-", "*", "/", "%", "^^"]);
-mixin ValueType!("Logical",    "Boolean", bool,   ["!"],      ["||", "&&", "^"]);
+mixin ValueType!("Arithmetic", "Number",  double, ["+", "-", "*", "/", "%", "^^"], ["+", "-"]);
+mixin ValueType!("Logical",    "Boolean", bool,   ["||", "&&", "^"],               ["!"]);
+
+
+// NUMBER RANGES
+
+class Range : Expression
+{
+public:
+
+        this(double lower, double upper, bool inclusive = false)
+        {
+                this.lower = lower;
+                this.upper = upper;
+                this.inclusive = inclusive;
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        override bool opEquals(Object o)
+        {
+                auto rhs = cast(Number) o;
+                if (!rhs) { return false; }
+
+                double value = rhs.value;
+                return this.lower <= value &&
+                        (this.inclusive ? value <= this.upper : value < this.upper);
+        }
+
+        int opCmp()(inout Expression rhs)
+        {
+                if (!cast(Number) rhs)  { return -1; }
+                if (this.opEquals(rhs)) { return 0; }
+
+                double value = (cast(Number) rhs).value;
+                if (value < this.lower) { return -1; }
+                if (value > this.lower) { return 1; }
+        }
+
+        override string toString() const
+        {
+                return "%s%s%s".format(this.lower, this.inclusive ? "..." : "..", this.upper);
+        }
+
+private:
+
+        double lower;
+        double upper;
+        bool inclusive;
+}
+
+// RELATIONAL OPERATIONS
+
+class Comparison : Logical
+{
+public:
+
+        this(Expression[] compared, string[] ops)
+        in {
+                assert(compared.length == ops.length + 1,
+                        "compared.length: %s, ops.length: %s"
+                                .format(compared.length, ops.length)
+                );
+        }
+        body {
+                this.compared = compared;
+                this.ops = ops;
+        }
+
+        override Expression evaluate() const
+        {
+                auto result = new Boolean(true);
+
+                for (int i; i < ops.length; ++i)
+                {
+                        string op = ops[i];
+                        auto lhs = cast(Expression) compared[i].evaluate;
+                        auto rhs = cast(Expression) compared[i + 1].evaluate;
+
+                        string notNumericError = "Value `%s` used in a comparison is not of numeric type.";
+                        final switch (op)
+                        {
+                                case "=":
+                                {
+                                        result = new Boolean(result.value && lhs == rhs);
+                                        break;
+                                }
+
+                                case "!=":
+                                {
+                                        result = new Boolean(result.value && lhs != rhs);
+                                        break;
+                                }
+
+                                case ">":
+                                {
+                                        if (!cast(Number) lhs)
+                                        {
+                                                return new InvalidExpr(notNumericError.format(lhs));
+                                        }
+                                        if (!cast(Number) rhs)
+                                        {
+                                                return new InvalidExpr(notNumericError.format(rhs));
+                                        }
+                                        result = new Boolean(result.value && cast(Number) lhs > cast(Number) rhs);
+                                        break;
+                                }
+
+                                case ">=":
+                                {
+                                        if (!cast(Number) lhs)
+                                        {
+                                                return new InvalidExpr(notNumericError.format(lhs));
+                                        }
+                                        if (!cast(Number) rhs)
+                                        {
+                                                return new InvalidExpr(notNumericError.format(rhs));
+                                        }
+                                        result = new Boolean(result.value && cast(Number) lhs >= cast(Number) rhs);
+                                        break;
+                                }
+
+                                case "<":
+                                {
+                                        if (!cast(Number) lhs)
+                                        {
+                                                return new InvalidExpr(notNumericError.format(lhs));
+                                        }
+                                        if (!cast(Number) rhs)
+                                        {
+                                                return new InvalidExpr(notNumericError.format(rhs));
+                                        }
+                                        result = new Boolean(result.value && cast(Number) lhs < cast(Number) rhs);
+                                        break;
+                                }
+
+                                case "<=":
+                                {
+                                        if (!cast(Number) lhs)
+                                        {
+                                                return new InvalidExpr(notNumericError.format(lhs));
+                                        }
+                                        if (!cast(Number) rhs)
+                                        {
+                                                return new InvalidExpr(notNumericError.format(rhs));
+                                        }
+                                        result = new Boolean(result.value && cast(Number) lhs <= cast(Number) rhs);
+                                        break;
+                                }
+                        }
+
+                        if (!result.value)
+                        {
+                                return result;
+                        }
+                }
+
+                return result;
+        }
+
+        @property override bool value() const
+        {
+                return (cast(Boolean) this.evaluate).value;
+        }
+
+        override string toString() const
+        {
+                return this.value.to!string;
+        }
+
+private:
+
+        Expression[] compared;
+        string[] ops;
+}
 
 
 // STRING
@@ -235,6 +481,19 @@ public:
                 if (op == "~")
         {
                 return new String(this.str ~ rhs.toString);
+        }
+
+        override bool opEquals(Object o) const
+        {
+                if (!cast(Expression) o) { return false; }
+                String rhs = cast(String) (cast(Expression) o).evaluate;
+                return rhs && rhs.str == this.str;
+        }
+
+        int opCmp()(inout Expression rhs) const
+        {
+                if (!rhs || !cast(String) rhs.evaluate) { return -1; }
+                return (cast(String) rhs.evaluate).str.opCmp(this.str);
         }
 
         override Expression evaluate() const

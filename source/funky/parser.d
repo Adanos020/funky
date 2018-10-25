@@ -32,7 +32,7 @@ PT stripNumber(PT)(PT p)
 
 PT trimOnce(PT)(PT p)
 {
-        return p.children.length > 0 ? p.children[0] : p;
+        return p.children.length ? p.children[0] : p;
 }
 
 PT trim(PT)(PT p)
@@ -74,22 +74,4 @@ PT trim(PT)(PT p)
                 child = child.trim;
         }
         return p;
-}
-
-
-unittest
-{
-        auto test = new GrammarTester!(Funky, "Arithmetic");
-
-        test.assertSimilar(`0`,
-                `
-                NumberLiteral
-                `
-        );
-
-        test.assertSimilar(`(0)`,
-                `
-                NumberLiteral
-                `
-        );
 }

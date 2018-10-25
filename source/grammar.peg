@@ -153,8 +153,14 @@ Funky:
                 / "<=" / !OpConstant !OpVariable "<"
                 / ">=" / ">"
 
+        Range < Arithmetic  OpRange Arithmetic
+        Error < Arithmetic ;OpError Arithmetic
+
         ComparableValue < Arithmetic
-                        | Logical
+                        | Range
+                        | Error
+                        | !Comparison Logical
+                        | '(' Comparison ')'
                         | ArrayLiteral
                         | BooleanLiteral
                         | NumberLiteral
@@ -163,8 +169,7 @@ Funky:
                         | SafeConditional
                         | VagueExpression
 
-        Comparison < ComparableValue OpCmp ComparableValue ((OpError / OpRange) ComparableValue)?
-                   | ComparableValue (OpCmp Comparison{ trimOnce })+
+        Comparison < ComparableValue (OpCmp ComparableValue)+
 
 # Assignments.
 
