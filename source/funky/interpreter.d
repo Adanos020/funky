@@ -40,19 +40,33 @@ private
                 Expression value;
         }
 
-        const(string) fileExtension = ".hs";
-        const(string[]) valueTypes = [
-                "Funky.Sum",             "Funky.Product",    "Funky.Power", "Funky.Unary",
-                "Funky.ArrayLiteral",    "Funky.ArraySlice",
-                "Funky.BooleanLiteral",  "Funky.Comparison",
-                "Funky.Concatenation",
-                "Funky.Conditional",     "Funky.SafeConditional",
-                "Funky.FunctionLiteral", "Funky.FunctionCall",
+        enum string fileExtension = ".hs";
+        enum string[] valueTypes = [
+                "Funky.ArrayLiteral",
+                "Funky.ArraySlice",
+                "Funky.AssignConstant",
+                "Funky.AssignFunction",
+                "Funky.AssignVariable",
+                "Funky.BooleanLiteral",
+                "Funky.FunctionLiteral",
                 "Funky.Identifier",
-                "Funky.And",             "Funky.Xor",        "Funky.Or",    "Funky.Not",
                 "Funky.NumberLiteral",
-                "Funky.ObjectLiteral",   "Funky.ObjectFieldAccess",
+                "Funky.ObjectLiteral",
                 "Funky.StringLiteral",
+                "Funky.Comparison",
+                "Funky.Concatenation",
+                "Funky.Conditional",
+                "Funky.SafeConditional",
+                "Funky.Sum",
+                "Funky.Product",
+                "Funky.Power",
+                "Funky.Unary",
+                "Funky.And",
+                "Funky.Xor",
+                "Funky.Or",
+                "Funky.Not",
+                "Funky.ObjectFieldAccess",
+                "Funky.FunctionCall",
         ];
 
         string[] importedModules;
@@ -145,14 +159,13 @@ ParseStatus interpret(string code, string moduleName = "console")
                                         p.position.line + 1,
                                         moduleName
                                 );
-                                return;
                         }
-                        term.writeln(expr);
+                        else if (!p.name.startsWith("Funky.Assign"))
+                        {
+                                term.writeln(expr);
+                        }
                 }
-
-                bool constant = false;
-
-                switch (p.name)
+                else switch (p.name)
                 {
                         case "Funky.Code":
                         {
@@ -192,53 +205,10 @@ ParseStatus interpret(string code, string moduleName = "console")
                                 break;
                         }
 
-                        case "Funky.Identifier":
-                        {
-                                break;
-                        }
-
                         case "Funky.Import":
                         {
                                 string path = p.children[0].match;
                                 status = importModule(path);
-                                break;
-                        }
-
-                        case "Funky.AssignConstant":
-                        {
-                                constant = true;
-                                goto case;
-                        }
-
-                        case "Funky.AssignFunction", "Funky.AssignVariable":
-                        {
-                                string varname = p.child.match;
-
-                                if (varname in variables && variables[varname].constant)
-                                {
-                                        status = ParseStatus(StatusCode.FAILURE,
-                                                "Attempting to assign to a constant `%s`."
-                                                        .format(varname),
-                                                p.position.line + 1,
-                                                moduleName
-                                        );
-                                        constant = false;
-                                        break;
-                                }
-
-                                Expression expr = p.children[1].toExpression;
-                                if (cast(InvalidExpr) expr)
-                                {
-                                        status = ParseStatus(StatusCode.FAILURE,
-                                                expr.toString,
-                                                p.position.line + 1,
-                                                moduleName
-                                        );
-                                        return;
-                                }
-
-                                variables[varname] = Variable(constant, expr);
-                                constant = false;
                                 break;
                         }
 
@@ -270,6 +240,9 @@ ParseTree child(ParseTree p)
 
 Expression toExpression(ParseTree p)
 {
+        // For assignments.
+        bool constant;
+
         switch (p.name)
         {
                 case "Funky.Sum", "Funky.Product", "Funky.Power":
@@ -279,8 +252,7 @@ Expression toExpression(ParseTree p)
                         if (!lhs)
                         {
                                 return new InvalidExpr(
-                                        "`%s` is not of an arithmetic type."
-                                                .format(p.child.match)
+                                        "`%s` is not of an arithmetic type.".format(p.child.match)
                                 );
                         }
 
@@ -292,8 +264,7 @@ Expression toExpression(ParseTree p)
                                 if (!rhs)
                                 {
                                         return new InvalidExpr(
-                                                "`%s` is not of an arithmetic type."
-                                                        .format(p.children[i].match)
+                                                "`%s` is not of an arithmetic type.".format(p.children[i].match)
                                         );
                                 }
 
@@ -348,8 +319,7 @@ Expression toExpression(ParseTree p)
                         if (!rhs)
                         {
                                 return new InvalidExpr(
-                                        "`%s` is not of an arithmetic type."
-                                                .format(p.children[1].match)
+                                        "`%s` is not of an arithmetic type.".format(p.children[1].match)
                                 );
                         }
 
@@ -364,14 +334,46 @@ Expression toExpression(ParseTree p)
                 case "Funky.ArrayAccess":
                 {
                         auto array = p.children[0].toExpression;
-                        auto index = p.children[1].toExpression;
-                        // TODO - access the element
-                        break;
+
+                        if (auto inv = cast(InvalidExpr) array)
+                        {
+                                return inv;
+                        }
+
+                        if (auto arr = cast(Array) array)
+                        {
+                                auto index = p.children[1].toExpression;
+
+                                if (auto inv = cast(InvalidExpr) index)
+                                {
+                                        return inv;
+                                }
+
+                                if (auto i = cast(Number) index)
+                                {
+                                        return arr[cast(int) i.value];
+                                }
+
+                                return new InvalidExpr(
+                                        "Value `%s` was expected to be a number.".format(index.toString)
+                                );
+                        }
+
+                        return new InvalidExpr(
+                                "Value `%s` was expected to be an array.".format(array.toString)
+                        );
                 }
 
                 case "Funky.ArrayLiteral":
                 {
-                        break;
+                        Expression[] arr;
+
+                        foreach (ch; p.child.children)
+                        {
+                                arr ~= ch.toExpression.evaluate;
+                        }
+
+                        return new Array(arr);
                 }
 
                 case "Funky.ArraySlice":
@@ -379,11 +381,31 @@ Expression toExpression(ParseTree p)
                         break;
                 }
 
-                case "Funky.AssignConstant",
-                     "Funky.AssignFunction",
-                     "Funky.AssignVariable":
+                case "Funky.AssignConstant":
                 {
-                        // TODO - make the assigned assignment actually assign.
+                        constant = true;
+                        goto case;
+                }
+
+                case "Funky.AssignFunction", "Funky.AssignVariable":
+                {
+                        string varname = p.child.match;
+
+                        if (varname in variables && variables[varname].constant)
+                        {
+                                return new InvalidExpr(
+                                        "Attempting to assign to a constant `%s`.".format(varname)
+                                );
+                        }
+
+                        Expression expr = p.children[1].toExpression;
+                        if (cast(InvalidExpr) expr)
+                        {
+                                return expr;
+                        }
+
+                        variables[varname] = Variable(constant, expr);
+                        constant = false;
                         return p.children[1].toExpression;
                 }
 
@@ -394,7 +416,19 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.Concatenation":
                 {
-                        break;
+                        Expression[] values;
+
+                        foreach (ch; p.children)
+                        {
+                                Expression expr = ch.toExpression;
+                                if (cast(InvalidExpr) expr)
+                                {
+                                        return expr;
+                                }
+                                values ~= expr;
+                        }
+
+                        return new Concatenation(values);
                 }
 
                 case "Funky.Comparison":
@@ -421,7 +455,20 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.Conditional":
                 {
-                        break;
+                        auto condition = cast(Boolean) p.children[0].toExpression.evaluate;
+
+                        if (!condition)
+                        {
+                                return new InvalidExpr(
+                                        "The value `%s` used as the condition was expected to be boolean."
+                                                .format(condition.toString)
+                                );
+                        }
+
+                        auto thenExpr = p.children[1].toExpression.evaluate;
+                        auto elseExpr = p.children[2].toExpression.evaluate;
+
+                        return condition.value ? thenExpr : elseExpr;
                 }
 
                 case "Funky.Error":
@@ -520,8 +567,7 @@ Expression toExpression(ParseTree p)
                         if (!rhs)
                         {
                                 return new InvalidExpr(
-                                        "`%s` is not of an arithmetic type."
-                                                .format(p.children[1].match)
+                                        "`%s` is not of an arithmetic type.".format(p.children[1].match)
                                 );
                         }
 

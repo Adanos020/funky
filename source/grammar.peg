@@ -66,8 +66,25 @@ Funky:
         ArrayIndexValue < Arithmetic / Conditional / VagueExpression
 
         OpConcatenate <- "~"
-        JoinableValue < StringLiteral / ArraySlice / ArrayLiteral / SafeConditional / VagueExpression
-        Concatenation < JoinableValue (;OpConcatenate Expression)+
+        JoinableInitial < StringLiteral / ArraySlice / ArrayLiteral / SafeConditional / VagueExpression
+        JoinableValue < '(' JoinableValue ')'
+                      | Arithmetic
+                      | ArrayLiteral
+                      | ArraySlice
+                      | AssignConstant
+                      | AssignFunction
+                      | AssignVariable
+                      | BooleanLiteral
+                      | SafeConditional
+                      | FunctionLiteral
+                      | Logical
+                      | NumberLiteral
+                      | ObjectLiteral
+                      | SafeConditional
+                      | StringLiteral
+                      | VagueExpression
+
+        Concatenation < JoinableInitial (;OpConcatenate JoinableValue)+
 
         FunctionLiteral      < ('(' ArgumentDeclarations? ')' / Identifier) (':' FunctionLocals)? ;OpReturn Expression
         FunctionCall         < ('(' FunctionLiteral ')' / SafeConditional / VagueExpression) '(' FunctionArguments? ')'
@@ -87,22 +104,22 @@ Funky:
                         / Identifier
 
         Expression < '(' Expression ')'
-              | Arithmetic
-              | ArrayLiteral
-              | ArraySlice
-              | AssignConstant
-              | AssignFunction
-              | AssignVariable
-              | BooleanLiteral
-              | Concatenation
-              | Conditional
-              | FunctionLiteral
-              | Logical
-              | NumberLiteral
-              | ObjectLiteral
-              | SafeConditional
-              | StringLiteral
-              | VagueExpression
+                   | Arithmetic
+                   | ArrayLiteral
+                   | ArraySlice
+                   | AssignConstant
+                   | AssignFunction
+                   | AssignVariable
+                   | BooleanLiteral
+                   | Concatenation
+                   | Conditional
+                   | FunctionLiteral
+                   | Logical
+                   | NumberLiteral
+                   | ObjectLiteral
+                   | SafeConditional
+                   | StringLiteral
+                   | VagueExpression
 
 # Arithmetic.
 

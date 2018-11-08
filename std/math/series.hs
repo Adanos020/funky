@@ -1,4 +1,4 @@
-import std/list/bound-checks
+import std/array/bound-checks
 
 -- Series
-sum(list) -> empty(list) ? 0 : list[0] + sum(list[1..])
+sum(array) -> empty(array) ? 0 : array[0] + sum(array[..-1])

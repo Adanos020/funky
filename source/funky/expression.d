@@ -11,6 +11,7 @@ interface Expression
 {
         Expression evaluate() const;
         string toString() const;
+        string dataType() const;
 }
 
 
@@ -33,6 +34,11 @@ public:
         override string toString() const
         {
                 return this.whatsWrong;
+        }
+
+        string dataType() const
+        {
+                return "Invalid Expression";
         }
 
 private:
@@ -91,7 +97,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 if (!rhs || !cast(`~ BaseValue ~`) rhs.evaluate) { return -1; }
                                 static if (is(Primitive == double))
                                 {
-                                        return cast(int)(this.value - (cast(`~ BaseValue ~`) rhs.evaluate).value);
+                                        return cast(int)(this.value - (cast(Number) rhs.evaluate).value);
                                 }
                                 else
                                 {
@@ -116,6 +122,11 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 }
                         }
 
+                        string dataType() const
+                        {
+                                return BaseValue;
+                        }
+
                 private:
 
                         Primitive val;
@@ -136,7 +147,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                         {
                                 static if (is(` ~ Value ~ ` == Logical))
                                 {
-                                        return mixin("new ` ~ BaseValue ~ `(" ~ OP ~ "this.rhs.value)");                        
+                                        return mixin("new Boolean(" ~ OP ~ "this.rhs.value)");                        
                                 }
                                 else
                                 {
@@ -170,7 +181,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 if (!rhs || !cast(`~ BaseValue ~`) rhs.evaluate) { return -1; }
                                 static if (is(Primitive == double))
                                 {
-                                        return cast(int)(this.value - (cast(`~ BaseValue ~`) rhs.evaluate).value);
+                                        return cast(int)(this.value - (cast(Number) rhs.evaluate).value);
                                 }
                                 else
                                 {
@@ -195,6 +206,11 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 }
                         }
 
+                        string dataType() const
+                        {
+                                return Value ~ " Unary";
+                        }
+
                 private:
 
                         ` ~ Value ~ ` rhs;
@@ -216,7 +232,20 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                         {
                                 static if (is(` ~ Value ~ ` == Logical))
                                 {
-                                        return mixin("new ` ~ BaseValue ~ `(this.lhs.value" ~ OP ~ "this.rhs.value)");
+                                        static if (OP == "&&")
+                                        {
+                                                if (!this.lhs.value) return new Boolean(false);
+                                                return new Boolean(this.rhs.value);
+                                        }
+                                        else if (OP == "||")
+                                        {
+                                                if (this.lhs.value) return new Boolean(true);
+                                                return new Boolean(this.rhs.value);
+                                        }
+                                        else // Only the XOR operator is left.
+                                        {
+                                                return new Boolean(this.lhs.value ^ this.rhs.value);
+                                        }
                                 }
                                 else
                                 {
@@ -253,7 +282,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 if (!rhs || !cast(`~ BaseValue ~`) rhs.evaluate) { return -1; }
                                 static if (is(Primitive == double))
                                 {
-                                        return cast(int)(this.value - (cast(`~ BaseValue ~`) rhs.evaluate).value);
+                                        return cast(int)(this.value - (cast(Number) rhs.evaluate).value);
                                 }
                                 else
                                 {
@@ -276,6 +305,11 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 {
                                         return this.value.to!string;
                                 }
+                        }
+
+                        string dataType() const
+                        {
+                                return Value ~ " Binary";
                         }
 
                 private:
@@ -308,22 +342,24 @@ public:
                 return cast(Expression) this;
         }
 
-        override bool opEquals(Object o)
+        override bool opEquals(Object o) const
         {
                 auto rhs = cast(Number) o;
                 if (!rhs) { return false; }
 
                 double value = rhs.value;
-                return this.lower <= value &&
-                        (this.inclusive ? value <= this.upper : value < this.upper);
+                return this.lower <= value && this.contains(value);
         }
 
-        int opCmp()(inout Expression rhs)
+        int opCmp()(inout Expression rhs) const
         {
-                if (!cast(Number) rhs)  { return -1; }
-                if (this.opEquals(rhs)) { return 0; }
+                if (!cast(Number) rhs) { return -1; }
 
                 double value = (cast(Number) rhs).value;
+                if (this.lower <= value && this.contains(value))
+                {
+                        return 0;
+                }
                 if (value < this.lower) { return -1; }
                 if (value > this.lower) { return 1; }
         }
@@ -331,6 +367,16 @@ public:
         override string toString() const
         {
                 return "%s%s%s".format(this.lower, this.inclusive ? "..." : "..", this.upper);
+        }
+
+        bool contains(double value) const
+        {
+                return this.inclusive ? value <= this.upper : value < this.upper;
+        }
+
+        string dataType() const
+        {
+                return "Range";
         }
 
 private:
@@ -459,12 +505,150 @@ public:
                 return this.value.to!string;
         }
 
+        string dataType() const
+        {
+                return "Comparison";
+        }
+
 private:
 
         Expression[] compared;
         string[] ops;
 }
 
+// CONCATENATION
+
+class Concatenation : Expression
+{
+public:
+
+        this(Expression[] values)
+        {
+                this.values = values;
+        }
+
+        override Expression evaluate() const
+        {
+                if (cast(String) this.values[0].evaluate)
+                {
+                        auto str = new String("");
+                        foreach (value; this.values)
+                        {
+                                str = str ~ value;
+                        }
+                        return str;
+                }
+                
+                if (cast(Array) this.values[0].evaluate)
+                {
+                        auto arr = new Array();
+                        foreach (value; this.values)
+                        {
+                                arr = arr ~ value.evaluate;
+                        }
+                        return arr;
+                }
+
+                return new InvalidExpr(
+                        "Value `%s` is expected to be an array or string, not %s."
+                                .format(this.values[0], this.values[0].dataType)
+                );
+        }
+
+        override string toString() const
+        {
+                return this.evaluate.toString;
+        }
+
+        string dataType() const
+        {
+                return "Concatenation";
+        }
+
+private:
+
+        Expression[] values;
+}
+
+// ARRAY
+
+class Array : Expression
+{
+public:
+
+        this(Expression[] values = [])
+        {
+                this.values = values;
+        }
+
+        Expression opIndex()(int index)
+        {
+                return this.values[(this.values.length + index) % this.values.length];
+        }
+
+        Array opBinary(string op)(inout Expression rhs)
+                if (op == "~")
+        {
+                auto lhs = new Array(this.values);
+
+                if (auto arr = cast(Array) rhs)
+                {
+                        foreach (value; arr.values)
+                        {
+                                lhs = lhs ~ value;
+                        }
+                }
+                else if (auto conc = cast(Concatenation) rhs)
+                {
+                        lhs = lhs ~ conc.evaluate;
+                }
+                else
+                {
+                        lhs.values ~= cast(Expression) rhs;
+                }
+
+                return lhs;
+        }
+
+        override bool opEquals(Object rhs) const
+        {
+                if (auto r = cast(Array) rhs)
+                {
+                        if (this.values.isSameLength(r.values))
+                        {
+                                return false;
+                        }
+                        for (int i; i < this.values.length; ++i)
+                        {
+                                if (this.values[i] != r.values[i])
+                                {
+                                        return false;
+                                }
+                        }
+                        return true;
+                }
+                return false;
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        override string toString() const
+        {
+                return this.values[].to!string;
+        }
+
+        string dataType() const
+        {
+                return "Array";
+        }
+
+private:
+
+        Expression[] values;
+}
 
 // STRING
 
@@ -504,6 +688,11 @@ public:
         override string toString() const
         {
                 return this.str;
+        }
+
+        string dataType() const
+        {
+                return "String";
         }
 
 private:
