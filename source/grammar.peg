@@ -56,14 +56,21 @@ Funky:
 
         ArrayContent < List(Expression){ trimOnce }
         ArrayLiteral < '[' ArrayContent? ']'
-        ArrayAccess  < (ArrayLiteral / SafeConditional / VagueExpression) '[' ArrayIndexValue ']'
-        ArraySlice   < (ArrayLiteral / SafeConditional / VagueExpression) '[' (
+        ArrayAccess  < MaybeAnArray '[' ArrayIndexValue ']'
+        ArraySlice   < MaybeAnArray '[' ArraySliceRange ']'
+
+        MaybeAnArray < '(' MaybeAnArray ')'
+                     / Concatenation
+                     / ArrayLiteral
+                     / SafeConditional
+                     / VagueExpression
+
+        ArrayIndexValue < Arithmetic / Conditional / VagueExpression
+        ArraySliceRange < (
                 ArrayIndexValue OpRange ArrayIndexValue /
                 ArrayIndexValue OpRange                 /
                                 OpRange ArrayIndexValue
-        ) ']'
-
-        ArrayIndexValue < Arithmetic / Conditional / VagueExpression
+        )
 
         OpConcatenate <- "~"
         JoinableInitial < StringLiteral / ArraySlice / ArrayLiteral / SafeConditional / VagueExpression
@@ -79,7 +86,7 @@ Funky:
                       | FunctionLiteral
                       | Logical
                       | NumberLiteral
-                      | ObjectLiteral
+                      | StructLiteral
                       | SafeConditional
                       | StringLiteral
                       | VagueExpression
@@ -94,13 +101,17 @@ Funky:
 
         OpAccess <- "::"
 
-        ObjectFields      < List(Assignment){ trimOnce }
-        ObjectLiteral     < '{' ObjectFields? '}'
-        ObjectFieldAccess < (ObjectLiteral / SafeConditional / VagueExpression) ;OpAccess Identifier
+        StructFields      < List(Assignment){ trimOnce }
+        StructLiteral     < '{' StructFields? '}'
+        StructFieldAccess < (StructLiteral / SafeConditional / VagueExpression) ;OpAccess Identifier
+
+        ClassField  < Assignment / Identifier
+        ClassFields < List(ClassField){ trimOnce }
+        Class < Identifier '{' ClassFields '}'
 
         VagueExpression < FunctionCall
                         / ArrayAccess
-                        / ObjectFieldAccess
+                        / StructFieldAccess
                         / Identifier
 
         Expression < '(' Expression ')'
@@ -111,12 +122,13 @@ Funky:
                    | AssignFunction
                    | AssignVariable
                    | BooleanLiteral
+                   | Class
                    | Concatenation
                    | Conditional
                    | FunctionLiteral
                    | Logical
                    | NumberLiteral
-                   | ObjectLiteral
+                   | StructLiteral
                    | SafeConditional
                    | StringLiteral
                    | VagueExpression
@@ -181,7 +193,7 @@ Funky:
                         | ArrayLiteral
                         | BooleanLiteral
                         | NumberLiteral
-                        | ObjectLiteral
+                        | StructLiteral
                         | StringLiteral
                         | SafeConditional
                         | VagueExpression

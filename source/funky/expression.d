@@ -581,9 +581,27 @@ public:
                 this.values = values;
         }
 
+        private size_t normalise(int index)
+        {
+                // Negative index values work like arr[length(arr) - index].
+                return (this.values.length + index % this.values.length) % this.values.length;
+        }
+
         Expression opIndex()(int index)
         {
-                return this.values[(this.values.length + index) % this.values.length];
+                return this.values[this.normalise(index)];
+        }
+
+        Array slice(Range sliceRange)
+        {
+                size_t begin = this.normalise(cast(int) sliceRange.lower);
+                size_t end   = this.normalise(cast(int) sliceRange.upper + cast(int) sliceRange.inclusive);
+
+                if (begin > end)
+                {
+                        return new Array(this.values[begin .. $] ~ this.values[0 .. end]);
+                }
+                return new Array(this.values[begin .. end]);
         }
 
         Array opBinary(string op)(inout Expression rhs)
@@ -698,4 +716,37 @@ public:
 private:
 
         string str;
+}
+
+// STRUCT
+
+class Struct : Expression
+{
+public:
+
+        this(string className, Expression[] fields)
+        {
+                this.className = className;
+                this.fields = fields;
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        override string toString() const
+        {
+                return this.className ~ this.fields[].to!string;
+        }
+
+        override string dataType() const
+        {
+                return "Struct";
+        }
+
+private:
+
+        string className;
+        Expression[] fields;
 }

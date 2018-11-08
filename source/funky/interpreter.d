@@ -42,6 +42,7 @@ private
 
         enum string fileExtension = ".hs";
         enum string[] valueTypes = [
+                "Funky.ArrayAccess",
                 "Funky.ArrayLiteral",
                 "Funky.ArraySlice",
                 "Funky.AssignConstant",
@@ -165,57 +166,17 @@ ParseStatus interpret(string code, string moduleName = "console")
                                 term.writeln(expr);
                         }
                 }
-                else switch (p.name)
+                else if (p.name == "Funky.Code")
                 {
-                        case "Funky.Code":
+                        foreach (ref child; p.children)
                         {
-                                foreach (ref child; p.children)
-                                {
-                                        processTree(child);
-                                }
-                                break;
+                                processTree(child);
                         }
-
-                        case "Funky.FunctionCall":
-                        {
-                                string funcName = p.children[0].match;
-                                if (p.children.length == 1)
-                                {
-                                        if (funcName == "exit" || funcName == "quit")
-                                        {
-                                                status = ParseStatus(StatusCode.EXIT);
-                                                break;
-                                        }
-                                }
-                                else
-                                {
-                                        if (funcName == "exit" || funcName == "quit")
-                                        {
-                                                status = ParseStatus(StatusCode.FAILURE,
-                                                        "Function `%s` called with %s parameters while expecting 0"
-                                                                .format(funcName, p.children[1].children.length),
-                                                        p.position.line + 1,
-                                                        moduleName
-                                                );
-                                                break;
-                                        }
-                                        auto args = p.children[1].children;
-                                        // TODO - call function
-                                }
-                                break;
-                        }
-
-                        case "Funky.Import":
-                        {
-                                string path = p.children[0].match;
-                                status = importModule(path);
-                                break;
-                        }
-
-                        default:
-                        {
-                                break;
-                        }
+                }
+                else if (p.name == "Funky.Import")
+                {
+                        string path = p.children[0].match;
+                        status = importModule(path);
                 }
         }
 
@@ -238,130 +199,80 @@ ParseTree child(ParseTree p)
         return p.children[0];
 }
 
+Expression toExpressionHelper(Type : Expression, string badTypeErrorMsg)(ParseTree p, Expression delegate(Type) process)
+{
+        auto expr = p.toExpression.evaluate;
+
+        if (auto inv = cast(InvalidExpr) expr)
+        {
+                return inv;
+        }
+
+        if (auto val = cast(Type) expr)
+        {
+                return process(val).evaluate;
+        }
+        return new InvalidExpr(badTypeErrorMsg.format(p.match, expr.dataType));
+}
+
 Expression toExpression(ParseTree p)
 {
         // For assignments.
         bool constant;
 
-        switch (p.name)
+        // Error messages.
+        enum notLogical         = "Value `%s` was expected to be of logical type, not %s.";
+        enum notArithmetic      = "Value `%s` was expected to be of arithmetic type, not %s.";
+        enum notArray           = "Value `%s` was expected to be of array type, not %s.";
+        enum notArithmeticRange = "Value `%s` used in a range expression was expected to be of arithmetic type, not %s.";
+        enum wrongFunctionParamsNum = "Function `%s` called with %s parameters while expecting 0";
+
+        final switch (p.name)
         {
                 case "Funky.Sum", "Funky.Product", "Funky.Power":
                 {
-                        auto lhs = cast(Arithmetic) p.child.toExpression;
-
-                        if (!lhs)
+                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic left)
                         {
-                                return new InvalidExpr(
-                                        "`%s` is not of an arithmetic type.".format(p.child.match)
-                                );
-                        }
-
-                        for (int i = 2; i < p.children.length; i += 2)
-                        {
-                                const(string) op = p.children[i - 1].match;
-                                auto rhs = cast(Arithmetic) p.children[i].toExpression;
-
-                                if (!rhs)
+                                for (int i = 2; i < p.children.length; i += 2)
                                 {
-                                        return new InvalidExpr(
-                                                "`%s` is not of an arithmetic type.".format(p.children[i].match)
-                                        );
+                                        const(string) op = p.children[i - 1].match;
+                                        left = cast(Arithmetic) p.children[i].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic right)
+                                        {
+                                                switch (op)
+                                                {
+                                                        case "+": return cast(Arithmetic) new ArithmeticBinary!"+" (left, right);
+                                                        case "-": return cast(Arithmetic) new ArithmeticBinary!"-" (left, right);
+                                                        case "*": return cast(Arithmetic) new ArithmeticBinary!"*" (left, right);
+                                                        case "/": return cast(Arithmetic) new ArithmeticBinary!"/" (left, right);
+                                                        case "%": return cast(Arithmetic) new ArithmeticBinary!"%" (left, right);
+                                                        default: break;
+                                                }
+                                                return cast(Arithmetic) new ArithmeticBinary!"^^"(left, right);
+                                        });
                                 }
-
-                                final switch (op)
-                                {
-                                        case "+":
-                                        {
-                                                lhs = new ArithmeticBinary!"+"(lhs, rhs);
-                                                break;
-                                        }
-
-                                        case "-":
-                                        {
-                                                lhs = new ArithmeticBinary!"-"(lhs, rhs);
-                                                break;
-                                        }
-
-                                        case "*":
-                                        {
-                                                lhs = new ArithmeticBinary!"*"(lhs, rhs);
-                                                break;
-                                        }
-
-                                        case "/":
-                                        {
-                                                lhs = new ArithmeticBinary!"/"(lhs, rhs);
-                                                break;
-                                        }
-
-                                        case "%":
-                                        {
-                                                lhs = new ArithmeticBinary!"%"(lhs, rhs);
-                                                break;
-                                        }
-
-                                        case "^":
-                                        {
-                                                lhs = new ArithmeticBinary!"^^"(lhs, rhs);
-                                                break;
-                                        }
-                                }
-                        }
-
-                        return lhs;
+                                return left;
+                        });
                 }
 
                 case "Funky.Unary":
                 {
                         const(string) op = p.children[0].match;
-                        auto rhs = cast(Arithmetic) p.children[1].toExpression;
-
-                        if (!rhs)
+                        return p.children[1].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic right)
                         {
-                                return new InvalidExpr(
-                                        "`%s` is not of an arithmetic type.".format(p.children[1].match)
-                                );
-                        }
-
-                        if (op == "-")
-                        {
-                                return new ArithmeticUnary!"-"(rhs);
-                        }
-                        // Unary `+` doesn't really change the value.
-                        return rhs;
+                                // Unary `+` doesn't change the value.
+                                return op == "-" ? new ArithmeticUnary!"-"(right) : right;
+                        });
                 }
 
                 case "Funky.ArrayAccess":
                 {
-                        auto array = p.children[0].toExpression;
-
-                        if (auto inv = cast(InvalidExpr) array)
+                        return p.children[0].toExpressionHelper!(Array, notArray)((Array array)
                         {
-                                return inv;
-                        }
-
-                        if (auto arr = cast(Array) array)
-                        {
-                                auto index = p.children[1].toExpression;
-
-                                if (auto inv = cast(InvalidExpr) index)
+                                return p.children[1].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic index)
                                 {
-                                        return inv;
-                                }
-
-                                if (auto i = cast(Number) index)
-                                {
-                                        return arr[cast(int) i.value];
-                                }
-
-                                return new InvalidExpr(
-                                        "Value `%s` was expected to be a number.".format(index.toString)
-                                );
-                        }
-
-                        return new InvalidExpr(
-                                "Value `%s` was expected to be an array.".format(array.toString)
-                        );
+                                        return array[cast(int) index.value];
+                                });
+                        });
                 }
 
                 case "Funky.ArrayLiteral":
@@ -378,7 +289,13 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.ArraySlice":
                 {
-                        break;
+                        return p.children[0].toExpressionHelper!(Array, notArray)((Array array)
+                        {
+                                return p.children[1].toExpressionHelper!(Range, "")((Range range)
+                                {
+                                        return array.slice(range);
+                                });
+                        });
                 }
 
                 case "Funky.AssignConstant":
@@ -412,6 +329,11 @@ Expression toExpression(ParseTree p)
                 case "Funky.BooleanLiteral":
                 {
                         return new Boolean(p.match.to!bool);
+                }
+
+                case "Funky.Class":
+                {
+                        break;
                 }
 
                 case "Funky.Concatenation":
@@ -455,44 +377,42 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.Conditional":
                 {
-                        auto condition = cast(Boolean) p.children[0].toExpression.evaluate;
-
-                        if (!condition)
+                        return p.children[0].toExpressionHelper!(Logical, notLogical)((Logical condition)
                         {
-                                return new InvalidExpr(
-                                        "The value `%s` used as the condition was expected to be boolean."
-                                                .format(condition.toString)
-                                );
-                        }
-
-                        auto thenExpr = p.children[1].toExpression.evaluate;
-                        auto elseExpr = p.children[2].toExpression.evaluate;
-
-                        return condition.value ? thenExpr : elseExpr;
+                                return condition.value ? p.children[1].toExpression.evaluate
+                                                       : p.children[2].toExpression.evaluate;
+                        });
                 }
 
                 case "Funky.Error":
                 {
-                        auto value = cast(Number) p.children[0].toExpression.evaluate;
-                        auto error = cast(Number) p.children[1].toExpression.evaluate;
-
-                        string notNumericError = "Value `%s` used in a range expression is not of numeric type.";
-                        if (!value)
+                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic value)
                         {
-                                return new InvalidExpr(notNumericError.format(value));
-                        }
-                        if (!error)
-                        {
-                                return new InvalidExpr(notNumericError.format(error));
-                        }
-
-                        double v = value.value;
-                        double e = error.value;
-                        return new Range(v - e, v + e, true);
+                                return p.children[1].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic error)
+                                {
+                                        const double v = value.value;
+                                        const double e = error.value;
+                                        return new Range(v - e, v + e, true);
+                                });
+                        });
                 }
 
                 case "Funky.FunctionCall":
                 {
+                        string funcName = p.children[0].match;
+                        if (funcName == "exit" || funcName == "quit")
+                        {
+                                if (p.children.length == 1)
+                                {
+                                        return new Number(0);
+                                }
+                                else
+                                {
+                                        return new InvalidExpr(wrongFunctionParamsNum
+                                                .format(funcName, p.children[1].children.length)
+                                        );
+                                }
+                        }
                         break;
                 }
 
@@ -512,66 +432,35 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.Or", "Funky.And", "Funky.Xor":
                 {
-                        auto lhs = cast(Logical) p.child.toExpression;
-
-                        if (!lhs)
+                        return p.children[0].toExpressionHelper!(Logical, notLogical)((Logical left)
                         {
-                                return new InvalidExpr(
-                                        "`%s` is not of a logical type."
-                                                .format(p.child.match)
-                                );
-                        }
-
-                        for (int i = 2; i < p.children.length; i += 2)
-                        {
-                                const(string) op = p.children[i - 1].match;
-                                auto rhs = cast(Logical) p.children[i].toExpression;
-
-                                if (!rhs)
+                                for (int i = 2; i < p.children.length; i += 2)
                                 {
-                                        return new InvalidExpr(
-                                                "`%s` is not of a logical type."
-                                                        .format(p.children[i].match)
-                                        );
+                                        const(string) op = p.children[i - 1].match;
+
+                                        left = cast(Logical) p.children[i].toExpressionHelper!(Logical, notLogical)((Logical right)
+                                        {
+                                                if (op == "|")
+                                                {
+                                                        return cast(Logical) new LogicalBinary!"||"(left, right);
+                                                }
+                                                if (op == "&")
+                                                {
+                                                        return cast(Logical) new LogicalBinary!"&&"(left, right);
+                                                }
+                                                return cast(Logical) new LogicalBinary!"^"(left, right);
+                                        });
                                 }
-
-                                final switch (op)
-                                {
-                                        case "|":
-                                        {
-                                                lhs = new LogicalBinary!"||"(lhs, rhs);
-                                                break;
-                                        }
-
-                                        case "&":
-                                        {
-                                                lhs = new LogicalBinary!"&&"(lhs, rhs);
-                                                break;
-                                        }
-
-                                        case "@":
-                                        {
-                                                lhs = new LogicalBinary!"^"(lhs, rhs);
-                                                break;
-                                        }
-                                }
-                        }
-
-                        return lhs;
+                                return left;
+                        });
                 }
 
                 case "Funky.Not":
                 {
-                        auto rhs = cast(Logical) p.children[1].toExpression;
-
-                        if (!rhs)
+                        return p.children[1].toExpressionHelper!(Logical, notLogical)((Logical right)
                         {
-                                return new InvalidExpr(
-                                        "`%s` is not of an arithmetic type.".format(p.children[1].match)
-                                );
-                        }
-
-                        return new LogicalUnary!"!"(rhs);
+                                return new LogicalUnary!"!"(right);
+                        });
                 }
 
                 case "Funky.NumberLiteral":
@@ -589,37 +478,45 @@ Expression toExpression(ParseTree p)
                         break;
                 }
 
+                case "Funky.ArraySliceRange":
+                {
+                        // array[lower..upper]
+                        if (p.children.length == 3)
+                        {
+                                goto case;
+                        }
+
+                        // array[..upper]
+                        if (p.children[0].name == "Funky.OpRange")
+                        {
+                                return p.children[1].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic upper)
+                                {
+                                        return new Range(0, upper.value, p.children[0].match == "...");
+                                });
+                        }
+
+                        // array[lower..]
+                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic lower)
+                        {
+                                return new Range(lower.value, -1, p.children[0].match == "...");
+                        });
+                }
+
                 case "Funky.Range":
                 {
-                        auto lower = cast(Number) p.children[0].toExpression.evaluate;
-                        auto upper = cast(Number) p.children[2].toExpression.evaluate;
-
-                        string notNumericError = "Value `%s` used in a range expression is not of numeric type.";
-                        if (!lower)
+                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic lower)
                         {
-                                return new InvalidExpr(notNumericError.format(lower));
-                        }
-                        if (!upper)
-                        {
-                                return new InvalidExpr(notNumericError.format(upper));
-                        }
-
-                        if (p.children[1].match == "...")
-                        {
-                                return new Range(lower.value, upper.value, true);
-                        }
-                        return new Range(lower.value, upper.value);
+                                return p.children[2].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic upper)
+                                {
+                                        return new Range(lower.value, upper.value, p.children[1].match == "...");
+                                });
+                        });
                 }
 
                 case "Funky.StringLiteral":
                 {
                         // Each StringLiteral has a StringContent child.
                         return new String(p.child.match);
-                }
-
-                default:
-                {
-                        return new InvalidExpr("Unrecognised value type `%s`".format(p.name));
                 }
         }
 

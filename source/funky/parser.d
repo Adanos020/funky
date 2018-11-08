@@ -37,26 +37,28 @@ PT trimOnce(PT)(PT p)
 
 PT trim(PT)(PT p)
 {
-        static immutable(string[]) keepName = map!(x => "Funky." ~ x)([
+        enum string[] keepName = map!(x => "Funky." ~ x)([
                 "AssignConstant",
                 "AssignFunction",
                 "AssignVariable",
         ]).array;
 
-        static immutable(string[]) keepNode = map!(x => "Funky." ~ x)([
+        enum string[] keepNode = map!(x => "Funky." ~ x)([
                 "ArgumentDeclarations",
                 "ArrayContent",
+                "ArrayIndexRange",
                 "ArrayLiteral",
                 "ArraySlice",
+                "ClassFields",
                 "Code",
                 "FunctionArguments",
                 "FunctionCall",
                 "FunctionLiteral",
                 "FunctionLocals",
                 "Import",
-                "ObjectFields",
-                "ObjectLiteral",
                 "StringLiteral",
+                "StructFields",
+                "StructLiteral",
         ]).array;
 
         if (p.children.length == 1 && !keepNode.canFind(p.name))
