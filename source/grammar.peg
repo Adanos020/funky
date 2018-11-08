@@ -76,8 +76,8 @@ Funky:
         JoinableInitial < StringLiteral / ArraySlice / ArrayLiteral / SafeConditional / VagueExpression
         JoinableValue < '(' JoinableValue ')'
                       | Arithmetic
-                      | ArrayLiteral
                       | ArraySlice
+                      | ArrayLiteral
                       | AssignConstant
                       | AssignFunction
                       | AssignVariable

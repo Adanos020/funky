@@ -7,6 +7,14 @@ import std.conv;
 import std.string;
 
 
+// Used for storage.
+struct Variable
+{
+        bool constant;
+        Expression value;
+}
+
+
 interface Expression
 {
         Expression evaluate() const;
@@ -724,10 +732,43 @@ class Struct : Expression
 {
 public:
 
-        this(string className, Expression[] fields)
+        this(string className, Variable[string] fields)
         {
                 this.className = className;
                 this.fields = fields;
+        }
+
+        Expression field(string name)
+        {
+                if (name !in this.fields)
+                {
+                        return new InvalidExpr(name);
+                }
+                return this.fields[name].value;
+        }
+
+        Expression field(string name, Expression newValue, bool constant = false)
+        {
+                if (name in this.fields && this.fields[name].constant)
+                {
+                        return new InvalidExpr("Attempting to assign to a constant `%s`.".format(name));
+                }
+                this.fields[name] = Variable(constant, newValue);
+                return newValue;
+        }
+
+        override bool opEquals(Object rhs) const
+        {
+                if (auto str = cast(Struct) rhs)
+                {
+                        return str.className == this.className
+                            && str.fields.length == this.fields.length
+                            && str.fields.keys == this.fields.keys
+                            && str.fields.values == this.fields.values
+                        ;
+                }
+
+                return false;
         }
 
         override Expression evaluate() const
@@ -737,7 +778,7 @@ public:
 
         override string toString() const
         {
-                return this.className ~ this.fields[].to!string;
+                return this.className ~ this.fields.to!string;
         }
 
         override string dataType() const
@@ -748,5 +789,5 @@ public:
 private:
 
         string className;
-        Expression[] fields;
+        Variable[string] fields;
 }

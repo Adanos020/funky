@@ -34,12 +34,6 @@ struct ParseStatus
 
 private
 {
-        struct Variable
-        {
-                bool constant;
-                Expression value;
-        }
-
         enum string fileExtension = ".hs";
         enum string[] valueTypes = [
                 "Funky.ArrayAccess",
@@ -52,7 +46,7 @@ private
                 "Funky.FunctionLiteral",
                 "Funky.Identifier",
                 "Funky.NumberLiteral",
-                "Funky.ObjectLiteral",
+                "Funky.StructLiteral",
                 "Funky.StringLiteral",
                 "Funky.Comparison",
                 "Funky.Concatenation",
@@ -66,7 +60,7 @@ private
                 "Funky.Xor",
                 "Funky.Or",
                 "Funky.Not",
-                "Funky.ObjectFieldAccess",
+                "Funky.StructFieldAccess",
                 "Funky.FunctionCall",
         ];
 
@@ -221,10 +215,13 @@ Expression toExpression(ParseTree p)
         bool constant;
 
         // Error messages.
-        enum notLogical         = "Value `%s` was expected to be of logical type, not %s.";
         enum notArithmetic      = "Value `%s` was expected to be of arithmetic type, not %s.";
         enum notArray           = "Value `%s` was expected to be of array type, not %s.";
         enum notArithmeticRange = "Value `%s` used in a range expression was expected to be of arithmetic type, not %s.";
+        enum notLogical         = "Value `%s` was expected to be of logical type, not %s.";
+        enum notStruct          = "Value `%s` was expected to be of struct type, not %s.";
+
+        enum wrongStructField       = "Struct `%s` has no field named `%s`.";
         enum wrongFunctionParamsNum = "Function `%s` called with %s parameters while expecting 0";
 
         final switch (p.name)
@@ -306,24 +303,40 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.AssignFunction", "Funky.AssignVariable":
                 {
-                        string varname = p.child.match;
-
-                        if (varname in variables && variables[varname].constant)
+                        if (p.children[0].name == "Funky.Identifier")
                         {
-                                return new InvalidExpr(
-                                        "Attempting to assign to a constant `%s`.".format(varname)
-                                );
-                        }
+                                string varname = p.child.match;
 
-                        Expression expr = p.children[1].toExpression;
-                        if (cast(InvalidExpr) expr)
-                        {
+                                if (varname in variables && variables[varname].constant)
+                                {
+                                        return new InvalidExpr(
+                                                "Attempting to assign to a constant `%s`.".format(varname)
+                                        );
+                                }
+
+                                Expression expr = p.children[1].toExpression;
+                                if (cast(InvalidExpr) expr)
+                                {
+                                        return expr;
+                                }
+
+                                variables[varname] = Variable(constant, expr);
+                                constant = false;
                                 return expr;
                         }
+                        if (p.children[0].name == "Funky.ArrayAccess")
+                        {
 
-                        variables[varname] = Variable(constant, expr);
-                        constant = false;
-                        return p.children[1].toExpression;
+                        }
+                        if (p.children[0].name == "Funky.StructFieldAccess")
+                        {
+                                Expression expr = p.children[1].toExpression;
+                                return p.children[0].children[0].toExpressionHelper!(Struct, notStruct)((Struct str)
+                                {
+                                        return str.field(p.children[0].children[1].match, expr, constant);
+                                });
+                        }
+                        break;
                 }
 
                 case "Funky.BooleanLiteral":
@@ -409,8 +422,7 @@ Expression toExpression(ParseTree p)
                                 else
                                 {
                                         return new InvalidExpr(wrongFunctionParamsNum
-                                                .format(funcName, p.children[1].children.length)
-                                        );
+                                                .format(funcName, p.children[1].children.length));
                                 }
                         }
                         break;
@@ -468,16 +480,6 @@ Expression toExpression(ParseTree p)
                         return new Number(p.match == "infinity" ? double.infinity : p.match.to!double);
                 }
 
-                case "Funky.ObjectLiteral":
-                {
-                        break;
-                }
-
-                case "Funky.ObjectFieldAccess":
-                {
-                        break;
-                }
-
                 case "Funky.ArraySliceRange":
                 {
                         // array[lower..upper]
@@ -489,14 +491,14 @@ Expression toExpression(ParseTree p)
                         // array[..upper]
                         if (p.children[0].name == "Funky.OpRange")
                         {
-                                return p.children[1].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic upper)
+                                return p.children[1].toExpressionHelper!(Arithmetic, notArithmeticRange)((Arithmetic upper)
                                 {
                                         return new Range(0, upper.value, p.children[0].match == "...");
                                 });
                         }
 
                         // array[lower..]
-                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic lower)
+                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmeticRange)((Arithmetic lower)
                         {
                                 return new Range(lower.value, -1, p.children[0].match == "...");
                         });
@@ -504,9 +506,9 @@ Expression toExpression(ParseTree p)
 
                 case "Funky.Range":
                 {
-                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic lower)
+                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmeticRange)((Arithmetic lower)
                         {
-                                return p.children[2].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic upper)
+                                return p.children[2].toExpressionHelper!(Arithmetic, notArithmeticRange)((Arithmetic upper)
                                 {
                                         return new Range(lower.value, upper.value, p.children[1].match == "...");
                                 });
@@ -517,6 +519,40 @@ Expression toExpression(ParseTree p)
                 {
                         // Each StringLiteral has a StringContent child.
                         return new String(p.child.match);
+                }
+
+                case "Funky.StructLiteral":
+                {
+                        Variable[string] fields;
+                        foreach (ch; p.child.children)
+                        {
+                                string name = ch.children[0].match;
+                                Expression value = ch.children[1].toExpression.evaluate;
+
+                                if (auto inv = cast(InvalidExpr) value)
+                                {
+                                        return inv;
+                                }
+
+                                fields[name] = Variable(ch.child.name == "Funky.AssignConstant" , value);
+                        }
+                        return new Struct("", fields);
+                }
+
+                case "Funky.StructFieldAccess":
+                {
+                        return p.children[0].toExpressionHelper!(Struct, notStruct)((Struct str)
+                        {
+                                Expression field = str.field(p.children[1].match);
+
+                                if (auto inv = cast(InvalidExpr) field)
+                                {
+                                        return new InvalidExpr(wrongStructField
+                                                .format(p.children[0].match, p.children[1].match));
+                                }
+
+                                return field;
+                        });
                 }
         }
 
