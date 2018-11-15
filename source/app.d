@@ -2,6 +2,7 @@ import arsd.terminal;
 
 import funky.interpreter;
 
+import std.algorithm.searching;
 import std.stdio;
 import std.string;
 
@@ -9,6 +10,7 @@ import std.string;
 void main(string[] args)
 {
         auto term = Terminal(ConsoleOutputType.linear);
+        auto input = RealTimeConsoleInput(&term, ConsoleInputFlags.allInputEvents);
 
         init(&term);
         importModule("std/init");
@@ -21,10 +23,17 @@ void main(string[] args)
 
         while (true)
         {
-                scope(failure) break;
-
                 term.write(">>> ");
-                string command = term.getline.strip;
+
+                string command;
+                try
+                {
+                        command = term.getline.strip;
+                }
+                catch (UserInterruptionException ex)
+                {
+                        break;
+                }
 
                 ParseStatus status = command.interpret;
 

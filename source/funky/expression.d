@@ -1,6 +1,10 @@
 module funky.expression;
 
 
+import funky.interpreter;
+
+import pegged.grammar;
+
 import std.algorithm.comparison;
 import std.algorithm.searching;
 import std.conv;
@@ -600,6 +604,11 @@ public:
                 return this.values[this.normalise(index)];
         }
 
+        void opIndexAssign()(Expression value, int index)
+        {
+                this.values[this.normalise(index)] = value;
+        }
+
         Array slice(Range sliceRange)
         {
                 size_t begin = this.normalise(cast(int) sliceRange.lower);
@@ -640,7 +649,7 @@ public:
         {
                 if (auto r = cast(Array) rhs)
                 {
-                        if (this.values.isSameLength(r.values))
+                        if (!this.values.isSameLength(r.values))
                         {
                                 return false;
                         }
@@ -778,7 +787,18 @@ public:
 
         override string toString() const
         {
-                return this.className ~ this.fields.to!string;
+                string str = "{";
+
+                foreach (key; this.fields.byKey)
+                {
+                        const(Variable) var = this.fields[key];
+                        str ~= "%s %s %s, ".format(key, var.constant ? "<<" : "<-", var.value);
+                }
+
+                str.length -= 2;
+                str ~= "}";
+
+                return this.className ~ str.idup;
         }
 
         override string dataType() const
@@ -790,4 +810,57 @@ private:
 
         string className;
         Variable[string] fields;
+}
+
+// FUNCTION
+
+class Function : Expression
+{
+public:
+
+        this(string[] argNames, Variable[string] locals, ParseTree code)
+        {
+                this.argNames = argNames;
+                this.locals   = locals;
+                this.code     = code;
+        }
+
+        Expression call(Expression[] args = [])
+        {
+                if (args.length != this.argNames.length)
+                {
+                        return new InvalidExpr(
+                                "Function called with %s arguments while %s is required."
+                                        .format(args.length, this.argNames.length)
+                        );
+                }
+
+                foreach (i, arg; args)
+                {
+                        this.locals[argNames[i]] = Variable(false, arg);
+                }
+
+                return code.toExpression(this.locals);
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        override string toString() const
+        {
+                return code.matches.join;
+        }
+
+        override string dataType() const
+        {
+                return "Function";
+        }
+
+private:
+
+        string[] argNames;
+        Variable[string] locals;
+        ParseTree code;
 }
