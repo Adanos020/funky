@@ -147,7 +147,7 @@ ParseStatus interpret(string code, string moduleName = "console")
 
                 if (valueTypes.canFind(p.name))
                 {
-                        Expression expr = p.toExpression((Variable[string]).init);
+                        Expression expr = p.toExpression((Variable[string]).init).evaluate;
                         if (cast(InvalidExpr) expr)
                         {
                                 status = ParseStatus(StatusCode.FAILURE,

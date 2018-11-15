@@ -49,7 +49,7 @@ public:
                 return this.whatsWrong;
         }
 
-        string dataType() const
+        override string dataType() const
         {
                 return "Invalid Expression";
         }
@@ -64,7 +64,7 @@ private:
 
 mixin template ValueType(string Value, string BaseValue, Primitive, string[] BinOps = [], string[] UnOps = [])
 {
-        enum operators = `
+        enum COMMON_MEMBERS = `
                 static if (UnOps.length)
                 ` ~ BaseValue ~ ` opUnary(string op)() const
                         if (UnOps.canFind(op))
@@ -110,6 +110,18 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 return (cast(`~ BaseValue ~`) rhs.evaluate).value.cmp(this.value);
                         }
                 }
+
+                override string toString() const
+                {
+                        static if (is(Primitive == string))
+                        {
+                                return this.value;
+                        }
+                        else
+                        {
+                                return this.value.to!string;
+                        }
+                }
         `;
 
         mixin(`
@@ -132,23 +144,11 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 return cast(Expression) this;
                         }
 
-                        ` ~ operators ~ `
+                        ` ~ COMMON_MEMBERS ~ `
 
                         @property override Primitive value() const
                         {
                                 return this.val;
-                        }
-
-                        override string toString() const
-                        {
-                                static if (is(Primitive == string))
-                                {
-                                        return this.val;
-                                }
-                                else
-                                {
-                                        return this.val.to!string;
-                                }
                         }
 
                         string dataType() const
@@ -184,23 +184,11 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 }
                         }
 
-                        ` ~ operators ~ `
+                        ` ~ COMMON_MEMBERS ~ `
 
                         @property override Primitive value() const
                         {
                                 return (cast(` ~ Value ~ `) this.evaluate).value;
-                        }
-
-                        override string toString() const
-                        {
-                                static if (is(Primitive == string))
-                                {
-                                        return this.value;
-                                }
-                                else
-                                {
-                                        return this.value.to!string;
-                                }
                         }
 
                         string dataType() const
@@ -234,7 +222,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                                 if (!this.lhs.value) return new Boolean(false);
                                                 return new Boolean(this.rhs.value);
                                         }
-                                        else if (OP == "||")
+                                        else static if (OP == "||")
                                         {
                                                 if (this.lhs.value) return new Boolean(true);
                                                 return new Boolean(this.rhs.value);
@@ -253,23 +241,11 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 }
                         }
 
-                        ` ~ operators ~ `
+                        ` ~ COMMON_MEMBERS ~ `
 
                         @property override Primitive value() const
                         {
                                 return (cast(` ~ Value ~ `) this.evaluate).value;
-                        }
-
-                        override string toString() const
-                        {
-                                static if (is(Primitive == string))
-                                {
-                                        return this.value;
-                                }
-                                else
-                                {
-                                        return this.value.to!string;
-                                }
                         }
 
                         string dataType() const
@@ -345,7 +321,7 @@ public:
                         && value >= this.lower;
         }
 
-        string dataType() const
+        override string dataType() const
         {
                 return "Range";
         }
@@ -382,10 +358,10 @@ public:
                 for (int i; i < ops.length; ++i)
                 {
                         string op = ops[i];
-                        auto lhs = cast(Expression) compared[i].evaluate;
-                        auto rhs = cast(Expression) compared[i + 1].evaluate;
+                        auto lhs = compared[i].evaluate;
+                        auto rhs = compared[i + 1].evaluate;
 
-                        string notNumericError = "Value `%s` used in a comparison is not of numeric type.";
+                        enum notArithmetic = "Value `%s` was expected to be an Arithmetic, not %s.";
                         final switch (op)
                         {
                                 case "=":
@@ -404,11 +380,11 @@ public:
                                 {
                                         if (!cast(Number) lhs)
                                         {
-                                                return new InvalidExpr(notNumericError.format(lhs));
+                                                return new InvalidExpr(notArithmetic.format(lhs, lhs.dataType));
                                         }
                                         if (!cast(Number) rhs)
                                         {
-                                                return new InvalidExpr(notNumericError.format(rhs));
+                                                return new InvalidExpr(notArithmetic.format(rhs, rhs.dataType));
                                         }
                                         result = new Boolean(result.value && cast(Number) lhs > cast(Number) rhs);
                                         break;
@@ -418,11 +394,11 @@ public:
                                 {
                                         if (!cast(Number) lhs)
                                         {
-                                                return new InvalidExpr(notNumericError.format(lhs));
+                                                return new InvalidExpr(notArithmetic.format(lhs, lhs.dataType));
                                         }
                                         if (!cast(Number) rhs)
                                         {
-                                                return new InvalidExpr(notNumericError.format(rhs));
+                                                return new InvalidExpr(notArithmetic.format(rhs, rhs.dataType));
                                         }
                                         result = new Boolean(result.value && cast(Number) lhs >= cast(Number) rhs);
                                         break;
@@ -432,11 +408,11 @@ public:
                                 {
                                         if (!cast(Number) lhs)
                                         {
-                                                return new InvalidExpr(notNumericError.format(lhs));
+                                                return new InvalidExpr(notArithmetic.format(lhs, lhs.dataType));
                                         }
                                         if (!cast(Number) rhs)
                                         {
-                                                return new InvalidExpr(notNumericError.format(rhs));
+                                                return new InvalidExpr(notArithmetic.format(rhs, rhs.dataType));
                                         }
                                         result = new Boolean(result.value && cast(Number) lhs < cast(Number) rhs);
                                         break;
@@ -446,11 +422,11 @@ public:
                                 {
                                         if (!cast(Number) lhs)
                                         {
-                                                return new InvalidExpr(notNumericError.format(lhs));
+                                                return new InvalidExpr(notArithmetic.format(lhs, lhs.dataType));
                                         }
                                         if (!cast(Number) rhs)
                                         {
-                                                return new InvalidExpr(notNumericError.format(rhs));
+                                                return new InvalidExpr(notArithmetic.format(rhs, rhs.dataType));
                                         }
                                         result = new Boolean(result.value && cast(Number) lhs <= cast(Number) rhs);
                                         break;
@@ -468,6 +444,8 @@ public:
 
         @property override bool value() const
         {
+                // You must externally make sure that the evaluated value
+                // is a valid Boolean object.
                 return (cast(Boolean) this.evaluate).value;
         }
 
@@ -476,7 +454,7 @@ public:
                 return this.value.to!string;
         }
 
-        string dataType() const
+        override string dataType() const
         {
                 return "Comparison";
         }
@@ -531,7 +509,7 @@ public:
                 return this.evaluate.toString;
         }
 
-        string dataType() const
+        override string dataType() const
         {
                 return "Concatenation";
         }
@@ -667,7 +645,7 @@ public:
                 return this.values[].to!string;
         }
 
-        string dataType() const
+        override string dataType() const
         {
                 return "Array";
         }
@@ -717,7 +695,7 @@ public:
                 return this.str;
         }
 
-        string dataType() const
+        override string dataType() const
         {
                 return "String";
         }
