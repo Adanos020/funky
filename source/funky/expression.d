@@ -8,6 +8,7 @@ import pegged.grammar;
 import std.algorithm.comparison;
 import std.algorithm.searching;
 import std.conv;
+import std.math;
 import std.string;
 
 
@@ -63,6 +64,54 @@ private:
 
 mixin template ValueType(string Value, string BaseValue, Primitive, string[] BinOps = [], string[] UnOps = [])
 {
+        enum operators = `
+                static if (UnOps.length)
+                ` ~ BaseValue ~ ` opUnary(string op)() const
+                        if (UnOps.canFind(op))
+                {
+                        return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
+                }
+
+                static if (BinOps.length)
+                ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
+                        if (BinOps.canFind(op))
+                {
+                        return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
+                }
+
+                override bool opEquals(Object o) const
+                {
+                        if (auto rhs = cast(Expression) o)
+                        {
+                                if (auto res = cast(` ~ BaseValue ~ `) rhs.evaluate)
+                                {
+                                        return res.value == this.value;
+                                }
+                                static if (Value == "Arithmetic")
+                                {
+                                        if (auto res = cast(Range) rhs)
+                                        {
+                                                return res.contains(this.value);
+                                        }
+                                }
+                        }
+                        return false;
+                }
+
+                int opCmp()(inout Expression rhs) const
+                {
+                        if (!rhs || !cast(` ~ BaseValue ~ `) rhs.evaluate) { return -1; }
+                        static if (is(Primitive == double))
+                        {
+                                return cast(int)(this.value - (cast(Number) rhs.evaluate).value);
+                        }
+                        else
+                        {
+                                return (cast(`~ BaseValue ~`) rhs.evaluate).value.cmp(this.value);
+                        }
+                }
+        `;
+
         mixin(`
                 interface ` ~ Value ~ ` : Expression
                 {
@@ -83,39 +132,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 return cast(Expression) this;
                         }
 
-                        static if (UnOps.length)
-                        ` ~ BaseValue ~ ` opUnary(string op)() const
-                                if (UnOps.canFind(op))
-                        {
-                                return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
-                        }
-
-                        static if (BinOps.length)
-                        ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
-                                if (BinOps.canFind(op))
-                        {
-                                return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
-                        }
-
-                        override bool opEquals(Object o) const
-                        {
-                                if (!cast(Expression) o) { return false; }
-                                auto rhs = cast(` ~ BaseValue ~ `) (cast(Expression) o).evaluate;
-                                return rhs && rhs.value == this.value;
-                        }
-
-                        int opCmp()(inout Expression rhs) const
-                        {
-                                if (!rhs || !cast(`~ BaseValue ~`) rhs.evaluate) { return -1; }
-                                static if (is(Primitive == double))
-                                {
-                                        return cast(int)(this.value - (cast(Number) rhs.evaluate).value);
-                                }
-                                else
-                                {
-                                        return (cast(`~ BaseValue ~`) rhs.evaluate).value.cmp(this.value);
-                                }
-                        }
+                        ` ~ operators ~ `
 
                         @property override Primitive value() const
                         {
@@ -167,39 +184,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 }
                         }
 
-                        static if (UnOps.length)
-                        ` ~ BaseValue ~ ` opUnary(string op)() const
-                                if (UnOps.canFind(op))
-                        {
-                                return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
-                        }
-
-                        static if (BinOps.length)
-                        ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
-                                if (BinOps.canFind(op))
-                        {
-                                return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
-                        }
-
-                        override bool opEquals(Object o) const
-                        {
-                                if (!cast(Expression) rhs) { return false; }
-                                auto res = cast(` ~ BaseValue ~ `) (cast(Expression) rhs).evaluate;
-                                return res && res.value == this.value;
-                        }
-
-                        override int opCmp()(inout Expression rhs) const
-                        {
-                                if (!rhs || !cast(`~ BaseValue ~`) rhs.evaluate) { return -1; }
-                                static if (is(Primitive == double))
-                                {
-                                        return cast(int)(this.value - (cast(Number) rhs.evaluate).value);
-                                }
-                                else
-                                {
-                                        return (cast(`~ BaseValue ~`) rhs.evaluate).value.cmp(this.value);
-                                }
-                        }
+                        ` ~ operators ~ `
 
                         @property override Primitive value() const
                         {
@@ -268,39 +253,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 }
                         }
 
-                        static if (UnOps.length)
-                        ` ~ BaseValue ~ ` opUnary(string op)() const
-                                if (UnOps.canFind(op))
-                        {
-                                return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
-                        }
-
-                        static if (BinOps.length)
-                        ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
-                                if (BinOps.canFind(op))
-                        {
-                                return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
-                        }
-
-                        override bool opEquals(Object o) const
-                        {
-                                if (!cast(Expression) rhs) { return false; }
-                                auto res = cast(` ~ BaseValue ~ `) (cast(Expression) rhs).evaluate;
-                                return res && res.value == this.value;
-                        }
-
-                        override int opCmp()(inout Expression rhs) const
-                        {
-                                if (!rhs || !cast(`~ BaseValue ~`) rhs.evaluate) { return -1; }
-                                static if (is(Primitive == double))
-                                {
-                                        return cast(int)(this.value - (cast(Number) rhs.evaluate).value);
-                                }
-                                else
-                                {
-                                        return (cast(`~ BaseValue ~`) rhs.evaluate).value.cmp(this.value);
-                                }
-                        }
+                        ` ~ operators ~ `
 
                         @property override Primitive value() const
                         {
@@ -356,11 +309,16 @@ public:
 
         override bool opEquals(Object o) const
         {
-                auto rhs = cast(Number) o;
-                if (!rhs) { return false; }
-
-                double value = rhs.value;
-                return this.lower <= value && this.contains(value);
+                if (auto rhs = cast(Expression) o)
+                {
+                        if (auto range = cast(Range) rhs.evaluate)
+                        {
+                                return this.lower     == range.lower
+                                    && this.upper     == range.upper
+                                    && this.inclusive == range.inclusive;
+                        }
+                }
+                return false;
         }
 
         int opCmp()(inout Expression rhs) const
@@ -383,7 +341,8 @@ public:
 
         bool contains(double value) const
         {
-                return this.inclusive ? value <= this.upper : value < this.upper;
+                return this.inclusive ? value <= this.upper : value < this.upper
+                        && value >= this.lower;
         }
 
         string dataType() const
@@ -593,26 +552,59 @@ public:
                 this.values = values;
         }
 
-        private size_t normalise(int index)
+        private size_t normalise(long index)
         {
                 // Negative index values work like arr[length(arr) - index].
-                return (this.values.length + index % this.values.length) % this.values.length;
+                const len = cast(long) this.values.length;
+                return index < 0 ? len + index : index;
         }
 
-        Expression opIndex()(int index)
+        private Expression inBounds(long index)
         {
-                return this.values[this.normalise(index)];
+                if (index >= this.values.length || index < 0)
+                {
+                        return new InvalidExpr(
+                                "Index %s is out of the array's bounds.".format(index)
+                        );
+                }
+                return null;
         }
 
-        void opIndexAssign()(Expression value, int index)
+        Expression opIndex()(long index)
         {
-                this.values[this.normalise(index)] = value;
+                index = this.normalise(index);
+                if (auto ib = this.inBounds(index))
+                {
+                        return ib;
+                }
+
+                return this.values[index];
         }
 
-        Array slice(Range sliceRange)
+        Expression opIndexAssign()(Expression value, long index)
         {
-                size_t begin = this.normalise(cast(int) sliceRange.lower);
-                size_t end   = this.normalise(cast(int) sliceRange.upper + cast(int) sliceRange.inclusive);
+                index = this.normalise(index);
+                if (auto ib = this.inBounds(index))
+                {
+                        return ib;
+                }
+
+                this.values[index] = value;
+                return this;
+        }
+
+        Expression slice(Range sliceRange)
+        {
+                const(size_t) begin = clamp(
+                        this.normalise(cast(long) sliceRange.lower),
+                        0, this.values.length
+                );
+
+                const(size_t) end = clamp(
+                        this.normalise(cast(long) sliceRange.upper)
+                                + cast(size_t) sliceRange.inclusive,
+                        0, this.values.length
+                );
 
                 if (begin > end)
                 {

@@ -168,9 +168,9 @@ ParseStatus interpret(string code, string moduleName = "console")
                 }
                 else if (p.name == "Funky.Code")
                 {
-                        foreach (ref child; p.children)
+                        foreach (ref ch; p.children)
                         {
-                                processTree(child);
+                                processTree(ch);
                         }
                 }
         }
@@ -238,14 +238,13 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
         bool constant;
 
         // Error messages.
-        enum notArithmetic      = "Value `%s` was expected to be of arithmetic type, not %s.";
-        enum notArray           = "Value `%s` was expected to be of array type, not %s.";
-        enum notArithmeticRange = "Value `%s` used in a range expression was expected to be of arithmetic type, not %s.";
-        enum notLogical         = "Value `%s` was expected to be of logical type, not %s.";
-        enum notStruct          = "Value `%s` was expected to be of struct type, not %s.";
-
-        enum wrongStructField       = "Struct `%s` has no field named `%s`.";
-        enum wrongFunctionParamsNum = "Function `%s` called with %s parameters while expecting 0";
+        enum notArithmetic      = "Value `%s` was expected to be an Arithmetic, not %s.";
+        enum notArray           = "Value `%s` was expected to be an Array, not %s.";
+        enum notArithmeticRange = "Value `%s` used in a range expression was expected to be an Arithmetic, not %s.";
+        enum notLogical         = "Value `%s` was expected to be a Logical, not %s.";
+        enum notStruct          = "Value `%s` was expected to be a Struct, not %s.";
+        enum notFunction        = "Value `%s` was expected to be a Function, not %s.";
+        enum wrongStructField   = "Struct `%s` has no field named `%s`.";
 
         final switch (p.name)
         {
@@ -299,7 +298,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                 {
                         Expression[] arr;
 
-                        if (!p.children.empty) foreach (ch; p.child.children)
+                        if (!p.children.empty) foreach (ref ch; p.child.children)
                         {
                                 arr ~= ch.toExpression(locals).evaluate;
                         }
@@ -387,7 +386,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                 {
                         Expression[] values;
 
-                        foreach (ch; p.children)
+                        foreach (ref ch; p.children)
                         {
                                 Expression expr = ch.toExpression(locals);
                                 if (cast(InvalidExpr) expr)
@@ -405,17 +404,17 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                         Expression[] compared;
                         string[] ops;
 
-                        foreach (i, child; p.children)
+                        foreach (i, ref ch; p.children)
                         {
                                 // The odd indices belong to operators
                                 if (i & 1)
                                 {
-                                        ops ~= child.match;
+                                        ops ~= ch.match;
                                 }
                                 // and the even ones to expressions.
                                 else
                                 {
-                                        compared ~= child.toExpression(locals);
+                                        compared ~= ch.toExpression(locals);
                                 }
                         }
 
@@ -446,7 +445,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.FunctionCall":
                 {
-                        return p.children[0].toExpressionHelper!(Function, "")((Function func)
+                        return p.children[0].toExpressionHelper!(Function, notFunction)((Function func)
                         {
                                 if (p.children.length < 2)
                                 {
@@ -454,7 +453,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                                 }
                                 auto args = new Expression[p.children[1].children.length];
 
-                                foreach (i, ch; p.children[1].children)
+                                foreach (i, ref ch; p.children[1].children)
                                 {
                                         args[i] = ch.toExpression(locals).evaluate;
                                 }
@@ -472,11 +471,15 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                         if (p.children[childN].name == "Funky.ArgumentDeclarations")
                         {
                                 args.length = p.child.children.length; 
-                                foreach (i, ch; p.child.children)
+                                foreach (i, ref ch; p.child.children)
                                 {
                                         args[i] = ch.match;
                                 }
                                 ++childN;
+                        }
+                        if (p.children[childN].name == "Funky.Identifier")
+                        {
+                                args = [p.children[childN++].match];
                         }
                         if (p.children[childN].name == "Funky.FunctionLocals")
                         {
@@ -557,7 +560,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                         // array[lower..]
                         return p.children[0].toExpressionHelper!(Arithmetic, notArithmeticRange)((Arithmetic lower)
                         {
-                                return new Range(lower.value, -1, p.children[0].match == "...");
+                                return new Range(lower.value, -1, p.children[1].match == "...");
                         }, locals);
                 }
 
@@ -581,7 +584,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                 case "Funky.StructLiteral":
                 {
                         Variable[string] fields;
-                        foreach (ch; p.child.children)
+                        foreach (ref ch; p.child.children)
                         {
                                 string name = ch.children[0].match;
                                 Expression value = ch.children[1].toExpression(locals).evaluate;
