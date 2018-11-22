@@ -22,6 +22,8 @@ string getCommand(ref Terminal term)
 
 void main(string[] args)
 {
+        scope(failure) return;
+
         auto term = Terminal(ConsoleOutputType.linear);
         auto input = RealTimeConsoleInput(&term, ConsoleInputFlags.allInputEvents);
 

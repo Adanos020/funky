@@ -96,7 +96,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                 }
         `;
 
-        mixin(`
+        mixin (`
                 interface ` ~ Value ~ ` : Expression
                 {
                         Primitive value() const;

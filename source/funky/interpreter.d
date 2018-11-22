@@ -10,6 +10,7 @@ import pegged.grammar;
 
 import std.algorithm.searching;
 import std.conv;
+import std.exception;
 import std.file;
 import std.range;
 import std.stdio;
@@ -150,11 +151,15 @@ ParseStatus interpret(string code, string moduleName = "console")
                 {
                         try
                         {
-                                Expression expr = p.toExpression((Variable[string]).init).evaluate;
+                                Expression expr = p.toExpression((Variable[string]).init);
+                                if (!expr)
+                                {
+                                        throw new Exception("NULL");
+                                }
 
                                 if (!p.name.startsWith("Funky.Assign"))
                                 {
-                                        term.writeln(expr);
+                                        term.writeln(expr.evaluate);
                                 }
                         }
                         catch (Exception ex)
@@ -200,13 +205,17 @@ ParseTree child(ParseTree p)
 }
 
 
-Type process(Type : Expression)(ParseTree p, Variable[string] locals, Expression delegate(Type) process)
+Expression process(Type : Expression, size_t line = __LINE__)
+                  (ParseTree p, Variable[string] locals, Expression delegate(Type) process)
 {
+        pragma(msg, "interpreter.d, line %s: Generated expression processing for type %s."
+                        .format(line, Type.stringof));
+
         auto expr = p.toExpression(locals).evaluate;
 
         if (auto val = cast(Type) expr)
         {
-                return cast(Type) process(val).evaluate;
+                return process(val).evaluate;
         }
 
         throw new InvalidTypeException!Type(expr.dataType, expr.toString);
@@ -319,7 +328,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                         if (p.children[0].name == "Funky.ArrayAccess")
                         {
-                                return p.children[0].children[0].process!(Array)(locals, (arr)
+                                return p.child.children[0].process!(Array)(locals, (arr)
                                 {
                                         return p.children[0].children[1].process!(Arithmetic)(locals, (index)
                                         {
@@ -332,7 +341,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                         if (p.children[0].name == "Funky.StructFieldAccess")
                         {
                                 Expression expr = p.children[1].toExpression(locals).evaluate;
-                                return p.children[0].children[0].process!(Struct)(locals, (str)
+                                return p.child.children[0].process!(Struct)(locals, (str)
                                 {
                                         return str.field(p.children[0].children[1].match, expr, constant);
                                 });
