@@ -1,10 +1,10 @@
-import std/list/bound-checks
-import std/list/functional
+import std/array/bound-checks
+import std/array/functional
 
 -- Sorting
-partition sort(list):
-        less <- filter(list, x -> x <  list[0]),
-        more <- filter(list, x -> x >= list[0])
+sort (array):
+        less <- filter (array, x -> x <  array[0]),
+        more <- filter (array, x -> x >= array[0])
 ->
-        empty(list) ? []
-                    : partition sort(less) ~ list[0] ~ partition sort(more)
+        empty (array) ? []
+                      : sort (less) ~ array[0] ~ sort (more)

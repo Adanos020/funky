@@ -2,6 +2,7 @@ module funky.expression;
 
 
 import funky.interpreter;
+import funky.exception;
 
 import pegged.grammar;
 
@@ -19,6 +20,7 @@ struct Variable
         Expression value;
 }
 
+// GENERAL EXPRESSION
 
 interface Expression
 {
@@ -27,43 +29,13 @@ interface Expression
         string dataType() const;
 }
 
-
-// ERROR
-
-class InvalidExpr : Expression
-{
-public:
-
-        this(string whatsWrong)
-        {
-                this.whatsWrong = whatsWrong;
-        }
-
-        override Expression evaluate() const
-        {
-                return cast(Expression) this;
-        }
-
-        override string toString() const
-        {
-                return this.whatsWrong;
-        }
-
-        override string dataType() const
-        {
-                return "Invalid Expression";
-        }
-
-private:
-
-        string whatsWrong;
-}
-
-
 // VALUES AND OPERATORS
 
-mixin template ValueType(string Value, string BaseValue, Primitive, string[] BinOps = [], string[] UnOps = [])
+mixin template ValueType(string Value, string BaseValue, Primitive, string[] BinOps = [], string[] UnOps = [], size_t line = __LINE__)
 {
+        pragma(msg, "expression.d, line %s: Generated %s expression with %s as base value and %s as the primitive type."
+                .format(line, Value, BaseValue, Primitive.stringof));
+
         enum COMMON_MEMBERS = `
                 static if (UnOps.length)
                 ` ~ BaseValue ~ ` opUnary(string op)() const
@@ -144,8 +116,6 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                                 return cast(Expression) this;
                         }
 
-                        ` ~ COMMON_MEMBERS ~ `
-
                         @property override Primitive value() const
                         {
                                 return this.val;
@@ -155,6 +125,8 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
                         {
                                 return BaseValue;
                         }
+
+                        ` ~ COMMON_MEMBERS ~ `
 
                 private:
 
@@ -174,17 +146,8 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
 
                         override Expression evaluate() const
                         {
-                                static if (is(` ~ Value ~ ` == Logical))
-                                {
-                                        return mixin("new Boolean(" ~ OP ~ "this.rhs.value)");                        
-                                }
-                                else
-                                {
-                                        return cast(Expression) mixin(OP ~ "(cast(` ~ BaseValue ~ `) this.rhs)");
-                                }
+                                return cast(Expression) mixin(OP ~ "(cast(` ~ BaseValue ~ `) this.rhs)");
                         }
-
-                        ` ~ COMMON_MEMBERS ~ `
 
                         @property override Primitive value() const
                         {
@@ -193,8 +156,10 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
 
                         string dataType() const
                         {
-                                return Value ~ " Unary";
+                                return Value ~ "Unary";
                         }
+
+                        ` ~ COMMON_MEMBERS ~ `
 
                 private:
 
@@ -215,33 +180,11 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
 
                         override Expression evaluate() const
                         {
-                                static if (is(` ~ Value ~ ` == Logical))
-                                {
-                                        static if (OP == "&&")
-                                        {
-                                                if (!this.lhs.value) return new Boolean(false);
-                                                return new Boolean(this.rhs.value);
-                                        }
-                                        else static if (OP == "||")
-                                        {
-                                                if (this.lhs.value) return new Boolean(true);
-                                                return new Boolean(this.rhs.value);
-                                        }
-                                        else // Only the XOR operator is left.
-                                        {
-                                                return new Boolean(this.lhs.value ^ this.rhs.value);
-                                        }
-                                }
-                                else
-                                {
-                                        return cast(Expression) mixin(
-                                                "((cast(` ~ BaseValue ~ `) this.lhs.evaluate)" ~ OP ~
-                                                 "(cast(` ~ BaseValue ~ `) this.rhs.evaluate))"
-                                        );
-                                }
+                                return cast(Expression) mixin(
+                                        "((cast(` ~ BaseValue ~ `) this.lhs.evaluate)" ~ OP ~
+                                        " (cast(` ~ BaseValue ~ `) this.rhs.evaluate))"
+                                );
                         }
-
-                        ` ~ COMMON_MEMBERS ~ `
 
                         @property override Primitive value() const
                         {
@@ -250,8 +193,10 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
 
                         string dataType() const
                         {
-                                return Value ~ " Binary";
+                                return Value ~ "Binary";
                         }
+
+                        ` ~ COMMON_MEMBERS ~ `
 
                 private:
 
@@ -262,262 +207,7 @@ mixin template ValueType(string Value, string BaseValue, Primitive, string[] Bin
 }
 
 mixin ValueType!("Arithmetic", "Number",  double, ["+", "-", "*", "/", "%", "^^"], ["+", "-"]);
-mixin ValueType!("Logical",    "Boolean", bool,   ["||", "&&", "^"],               ["!"]);
-
-
-// NUMBER RANGES
-
-class Range : Expression
-{
-public:
-
-        this(double lower, double upper, bool inclusive = false)
-        {
-                this.lower = lower;
-                this.upper = upper;
-                this.inclusive = inclusive;
-        }
-
-        override Expression evaluate() const
-        {
-                return cast(Expression) this;
-        }
-
-        override bool opEquals(Object o) const
-        {
-                if (auto rhs = cast(Expression) o)
-                {
-                        if (auto range = cast(Range) rhs.evaluate)
-                        {
-                                return this.lower     == range.lower
-                                    && this.upper     == range.upper
-                                    && this.inclusive == range.inclusive;
-                        }
-                }
-                return false;
-        }
-
-        int opCmp()(inout Expression rhs) const
-        {
-                if (!cast(Number) rhs) { return -1; }
-
-                double value = (cast(Number) rhs).value;
-                if (this.lower <= value && this.contains(value))
-                {
-                        return 0;
-                }
-                if (value < this.lower) { return -1; }
-                if (value > this.lower) { return 1; }
-        }
-
-        override string toString() const
-        {
-                return "%s%s%s".format(this.lower, this.inclusive ? "..." : "..", this.upper);
-        }
-
-        bool contains(double value) const
-        {
-                return this.inclusive ? value <= this.upper : value < this.upper
-                        && value >= this.lower;
-        }
-
-        override string dataType() const
-        {
-                return "Range";
-        }
-
-private:
-
-        double lower;
-        double upper;
-        bool inclusive;
-}
-
-// RELATIONAL OPERATIONS
-
-class Comparison : Logical
-{
-public:
-
-        this(Expression[] compared, string[] ops)
-        in {
-                assert(compared.length == ops.length + 1,
-                        "compared.length: %s, ops.length: %s"
-                                .format(compared.length, ops.length)
-                );
-        }
-        body {
-                this.compared = compared;
-                this.ops = ops;
-        }
-
-        override Expression evaluate() const
-        {
-                auto result = new Boolean(true);
-
-                for (int i; i < ops.length; ++i)
-                {
-                        string op = ops[i];
-                        auto lhs = compared[i].evaluate;
-                        auto rhs = compared[i + 1].evaluate;
-
-                        enum notArithmetic = "Value `%s` was expected to be an Arithmetic, not %s.";
-                        final switch (op)
-                        {
-                                case "=":
-                                {
-                                        result = new Boolean(result.value && lhs == rhs);
-                                        break;
-                                }
-
-                                case "!=":
-                                {
-                                        result = new Boolean(result.value && lhs != rhs);
-                                        break;
-                                }
-
-                                case ">":
-                                {
-                                        if (!cast(Number) lhs)
-                                        {
-                                                return new InvalidExpr(notArithmetic.format(lhs, lhs.dataType));
-                                        }
-                                        if (!cast(Number) rhs)
-                                        {
-                                                return new InvalidExpr(notArithmetic.format(rhs, rhs.dataType));
-                                        }
-                                        result = new Boolean(result.value && cast(Number) lhs > cast(Number) rhs);
-                                        break;
-                                }
-
-                                case ">=":
-                                {
-                                        if (!cast(Number) lhs)
-                                        {
-                                                return new InvalidExpr(notArithmetic.format(lhs, lhs.dataType));
-                                        }
-                                        if (!cast(Number) rhs)
-                                        {
-                                                return new InvalidExpr(notArithmetic.format(rhs, rhs.dataType));
-                                        }
-                                        result = new Boolean(result.value && cast(Number) lhs >= cast(Number) rhs);
-                                        break;
-                                }
-
-                                case "<":
-                                {
-                                        if (!cast(Number) lhs)
-                                        {
-                                                return new InvalidExpr(notArithmetic.format(lhs, lhs.dataType));
-                                        }
-                                        if (!cast(Number) rhs)
-                                        {
-                                                return new InvalidExpr(notArithmetic.format(rhs, rhs.dataType));
-                                        }
-                                        result = new Boolean(result.value && cast(Number) lhs < cast(Number) rhs);
-                                        break;
-                                }
-
-                                case "<=":
-                                {
-                                        if (!cast(Number) lhs)
-                                        {
-                                                return new InvalidExpr(notArithmetic.format(lhs, lhs.dataType));
-                                        }
-                                        if (!cast(Number) rhs)
-                                        {
-                                                return new InvalidExpr(notArithmetic.format(rhs, rhs.dataType));
-                                        }
-                                        result = new Boolean(result.value && cast(Number) lhs <= cast(Number) rhs);
-                                        break;
-                                }
-                        }
-
-                        if (!result.value)
-                        {
-                                return result;
-                        }
-                }
-
-                return result;
-        }
-
-        @property override bool value() const
-        {
-                // You must externally make sure that the evaluated value
-                // is a valid Boolean object.
-                return (cast(Boolean) this.evaluate).value;
-        }
-
-        override string toString() const
-        {
-                return this.value.to!string;
-        }
-
-        override string dataType() const
-        {
-                return "Comparison";
-        }
-
-private:
-
-        Expression[] compared;
-        string[] ops;
-}
-
-// CONCATENATION
-
-class Concatenation : Expression
-{
-public:
-
-        this(Expression[] values)
-        {
-                this.values = values;
-        }
-
-        override Expression evaluate() const
-        {
-                if (cast(String) this.values[0].evaluate)
-                {
-                        auto str = new String("");
-                        foreach (value; this.values)
-                        {
-                                str = str ~ value;
-                        }
-                        return str;
-                }
-                
-                if (cast(Array) this.values[0].evaluate)
-                {
-                        auto arr = new Array();
-                        foreach (value; this.values)
-                        {
-                                arr = arr ~ value.evaluate;
-                        }
-                        return arr;
-                }
-
-                return new InvalidExpr(
-                        "Value `%s` is expected to be an array or string, not %s."
-                                .format(this.values[0], this.values[0].dataType)
-                );
-        }
-
-        override string toString() const
-        {
-                return this.evaluate.toString;
-        }
-
-        override string dataType() const
-        {
-                return "Concatenation";
-        }
-
-private:
-
-        Expression[] values;
-}
+mixin ValueType!("Logical", "Boolean", bool);
 
 // ARRAY
 
@@ -537,23 +227,17 @@ public:
                 return index < 0 ? len + index : index;
         }
 
-        private Expression inBounds(long index)
+        private bool inBounds(long index)
         {
-                if (index >= this.values.length || index < 0)
-                {
-                        return new InvalidExpr(
-                                "Index %s is out of the array's bounds.".format(index)
-                        );
-                }
-                return null;
+                return index < this.values.length && index >= 0;
         }
 
         Expression opIndex()(long index)
         {
                 index = this.normalise(index);
-                if (auto ib = this.inBounds(index))
+                if (!this.inBounds(index))
                 {
-                        return ib;
+                        throw new OutOfArrayBoundsException(index);
                 }
 
                 return this.values[index];
@@ -562,9 +246,9 @@ public:
         Expression opIndexAssign()(Expression value, long index)
         {
                 index = this.normalise(index);
-                if (auto ib = this.inBounds(index))
+                if (!this.inBounds(index))
                 {
-                        return ib;
+                        throw new OutOfArrayBoundsException(index);
                 }
 
                 this.values[index] = value;
@@ -655,6 +339,315 @@ private:
         Expression[] values;
 }
 
+// RELATIONAL OPERATIONS
+
+class Comparison : Logical
+{
+public:
+
+        this(Expression[] compared, string[] ops)
+        in {
+                assert(compared.length == ops.length + 1,
+                        "compared.length: %s, ops.length: %s"
+                                .format(compared.length, ops.length)
+                );
+        }
+        body {
+                this.compared = compared;
+                this.ops = ops;
+        }
+
+        override Expression evaluate() const
+        {
+                auto result = new Boolean(true);
+
+                for (int i; i < ops.length; ++i)
+                {
+                        string op = ops[i];
+                        auto lhs = compared[i].evaluate;
+                        auto rhs = compared[i + 1].evaluate;
+
+                        enum notArithmetic = "Value `%s` was expected to be an Arithmetic, not %s.";
+                        final switch (op)
+                        {
+                                case "=":
+                                {
+                                        result = new Boolean(result.value && lhs == rhs);
+                                        break;
+                                }
+
+                                case "!=":
+                                {
+                                        result = new Boolean(result.value && lhs != rhs);
+                                        break;
+                                }
+
+                                case ">":
+                                {
+                                        if (!cast(Number) lhs)
+                                        {
+                                                throw new InvalidTypeException!(Arithmetic)(lhs.dataType, lhs.toString);
+                                        }
+                                        if (!cast(Number) rhs)
+                                        {
+                                                throw new InvalidTypeException!(Arithmetic)(rhs.dataType, rhs.toString);
+                                        }
+                                        result = new Boolean(result.value && cast(Number) lhs > cast(Number) rhs);
+                                        break;
+                                }
+
+                                case ">=":
+                                {
+                                        if (!cast(Number) lhs)
+                                        {
+                                                throw new InvalidTypeException!(Arithmetic)(lhs.dataType, lhs.toString);
+                                        }
+                                        if (!cast(Number) rhs)
+                                        {
+                                                throw new InvalidTypeException!(Arithmetic)(rhs.dataType, rhs.toString);
+                                        }
+                                        result = new Boolean(result.value && cast(Number) lhs >= cast(Number) rhs);
+                                        break;
+                                }
+
+                                case "<":
+                                {
+                                        if (!cast(Number) lhs)
+                                        {
+                                                throw new InvalidTypeException!(Arithmetic)(lhs.dataType, lhs.toString);
+                                        }
+                                        if (!cast(Number) rhs)
+                                        {
+                                                throw new InvalidTypeException!(Arithmetic)(rhs.dataType, rhs.toString);
+                                        }
+                                        result = new Boolean(result.value && cast(Number) lhs < cast(Number) rhs);
+                                        break;
+                                }
+
+                                case "<=":
+                                {
+                                        if (!cast(Number) lhs)
+                                        {
+                                                throw new InvalidTypeException!(Arithmetic)(lhs.dataType, lhs.toString);
+                                        }
+                                        if (!cast(Number) rhs)
+                                        {
+                                                throw new InvalidTypeException!(Arithmetic)(rhs.dataType, rhs.toString);
+                                        }
+                                        result = new Boolean(result.value && cast(Number) lhs <= cast(Number) rhs);
+                                        break;
+                                }
+                        }
+
+                        if (!result.value)
+                        {
+                                return result;
+                        }
+                }
+
+                return result;
+        }
+
+        @property override bool value() const
+        {
+                // You must externally make sure that the evaluated value
+                // is a valid Boolean object.
+                return (cast(Boolean) this.evaluate).value;
+        }
+
+        override string toString() const
+        {
+                return this.value.to!string;
+        }
+
+        override string dataType() const
+        {
+                return "Comparison";
+        }
+
+private:
+
+        Expression[] compared;
+        string[] ops;
+}
+
+// CONCATENATION
+
+class Concatenation : Expression
+{
+public:
+
+        this(Expression[] values)
+        {
+                this.values = values;
+        }
+
+        override Expression evaluate() const
+        {
+                if (cast(String) this.values[0].evaluate)
+                {
+                        auto str = new String("");
+                        foreach (value; this.values)
+                        {
+                                str = str ~ value;
+                        }
+                        return str;
+                }
+                
+                if (cast(Array) this.values[0].evaluate)
+                {
+                        auto arr = new Array();
+                        foreach (value; this.values)
+                        {
+                                arr = arr ~ value.evaluate;
+                        }
+                        return arr;
+                }
+
+                throw new NotConcatenatableException(this.values[0].toString, this.values[0].dataType);
+        }
+
+        override string toString() const
+        {
+                return this.evaluate.toString;
+        }
+
+        override string dataType() const
+        {
+                return "Concatenation";
+        }
+
+private:
+
+        Expression[] values;
+}
+
+// FUNCTION
+
+class Function : Expression
+{
+public:
+
+        this(string[] argNames, ParseTree[] localsCode, ParseTree code)
+        {
+                this.argNames   = argNames;
+                this.localsCode = localsCode;
+                this.code       = code;
+        }
+
+        Expression call(Expression[] args = [])
+        {
+                if (args.length != this.argNames.length)
+                {
+                        throw new TooFewArgumentsException(args.length, this.argNames.length);
+                }
+
+                foreach (i, arg; args)
+                {
+                        this.locals[argNames[i]] = Variable(false, arg);
+                }
+
+                foreach (loc; localsCode)
+                {
+                        // All of these are assignment expressions so they will
+                        // be all assigned to the right container.
+                        loc.toExpression(this.locals);
+                }
+
+                return code.toExpression(this.locals);
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        override string toString() const
+        {
+                return "(%-(%s,%))->%s".format(argNames, code.matches.join);
+        }
+
+        override string dataType() const
+        {
+                return "Function";
+        }
+
+private:
+
+        string[] argNames;
+        Variable[string] locals;
+        ParseTree[] localsCode;
+        ParseTree code;
+}
+
+// NUMBER RANGES
+
+class Range : Expression
+{
+public:
+
+        this(double lower, double upper, bool inclusive = false)
+        {
+                this.lower = lower;
+                this.upper = upper;
+                this.inclusive = inclusive;
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        override bool opEquals(Object o) const
+        {
+                if (auto rhs = cast(Expression) o)
+                {
+                        if (auto range = cast(Range) rhs.evaluate)
+                        {
+                                return this.lower     == range.lower
+                                    && this.upper     == range.upper
+                                    && this.inclusive == range.inclusive;
+                        }
+                }
+                return false;
+        }
+
+        int opCmp()(inout Expression rhs) const
+        {
+                if (!cast(Number) rhs) { return -1; }
+
+                double value = (cast(Number) rhs).value;
+                if (this.lower <= value && this.contains(value))
+                {
+                        return 0;
+                }
+                if (value < this.lower) { return -1; }
+                if (value > this.lower) { return 1; }
+        }
+
+        override string toString() const
+        {
+                return "%s%s%s".format(this.lower, this.inclusive ? "..." : "..", this.upper);
+        }
+
+        bool contains(double value) const
+        {
+                return this.inclusive ? value <= this.upper : value < this.upper
+                        && value >= this.lower;
+        }
+
+        override string dataType() const
+        {
+                return "Range";
+        }
+
+private:
+
+        double lower;
+        double upper;
+        bool inclusive;
+}
+
 // STRING
 
 class String : Expression
@@ -721,7 +714,7 @@ public:
         {
                 if (name !in this.fields)
                 {
-                        return new InvalidExpr(name);
+                        throw new NoFieldException(name);
                 }
                 return this.fields[name].value;
         }
@@ -730,7 +723,7 @@ public:
         {
                 if (name in this.fields && this.fields[name].constant)
                 {
-                        return new InvalidExpr("Attempting to assign to a constant `%s`.".format(name));
+                        throw new ConstantMutationException(name);
                 }
                 this.fields[name] = Variable(constant, newValue);
                 return newValue;
@@ -780,57 +773,4 @@ private:
 
         string className;
         Variable[string] fields;
-}
-
-// FUNCTION
-
-class Function : Expression
-{
-public:
-
-        this(string[] argNames, Variable[string] locals, ParseTree code)
-        {
-                this.argNames = argNames;
-                this.locals   = locals;
-                this.code     = code;
-        }
-
-        Expression call(Expression[] args = [])
-        {
-                if (args.length != this.argNames.length)
-                {
-                        return new InvalidExpr(
-                                "Function called with %s arguments while %s is required."
-                                        .format(args.length, this.argNames.length)
-                        );
-                }
-
-                foreach (i, arg; args)
-                {
-                        this.locals[argNames[i]] = Variable(false, arg);
-                }
-
-                return code.toExpression(this.locals);
-        }
-
-        override Expression evaluate() const
-        {
-                return cast(Expression) this;
-        }
-
-        override string toString() const
-        {
-                return code.matches.join;
-        }
-
-        override string dataType() const
-        {
-                return "Function";
-        }
-
-private:
-
-        string[] argNames;
-        Variable[string] locals;
-        ParseTree code;
 }

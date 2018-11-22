@@ -28,11 +28,11 @@ Funky:
         IdMiddle     <- !Whites !ReservedChar .
         Identifier   <{ stripName } !Keyword ~(;IdStart (NameSpacing? ;IdMiddle)*)
 
-        KwordFalse    <- "false"    !IdMiddle
-        KwordImport   <- "import"   !IdMiddle
-        KwordInfinity <- "infinity" !IdMiddle
-        KwordNaN      <- "NaN"      !IdMiddle
-        KwordTrue     <- "true"     !IdMiddle
+        KwordFalse    <- "false"  !IdMiddle
+        KwordImport   <- "import" !IdMiddle
+        KwordInfinity <- "inf"    !IdMiddle
+        KwordNaN      <- "nan"    !IdMiddle
+        KwordTrue     <- "true"   !IdMiddle
 
         Keyword <- KwordFalse
                  / KwordImport
@@ -56,15 +56,14 @@ Funky:
 
         ArrayContent < List(Expression){ trimOnce }
         ArrayLiteral < '[' ArrayContent? ']'
-        ArrayAccess  < MaybeAnArray '[' ArrayIndexValue ']'
-        ArraySlice   < MaybeAnArray '[' ArraySliceRange ']'
+        ArrayAccess  < (ArraySlice / MaybeAnArray) '[' ArrayIndexValue ']'
+        ArraySlice   < (ArraySlice / MaybeAnArray) '[' ArraySliceRange ']'
 
         MaybeAnArray < '(' MaybeAnArray ')'
-                     / Concatenation
-                     / ArrayLiteral
-                     / SafeConditional
-                     / VagueExpression
-                     / ArraySlice
+                     | Concatenation
+                     | ArrayLiteral
+                     | SafeConditional
+                     | VagueExpression
 
         ArrayIndexValue < Arithmetic / Conditional / VagueExpression
         ArraySliceRange < (

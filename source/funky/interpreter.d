@@ -2,6 +2,7 @@ module funky.interpreter;
 
 import arsd.terminal;
 
+import funky.exception;
 import funky.expression;
 import funky.parser;
 
@@ -147,18 +148,22 @@ ParseStatus interpret(string code, string moduleName = "console")
 
                 if (valueTypes.canFind(p.name))
                 {
-                        Expression expr = p.toExpression((Variable[string]).init).evaluate;
-                        if (cast(InvalidExpr) expr)
+                        try
+                        {
+                                Expression expr = p.toExpression((Variable[string]).init).evaluate;
+
+                                if (!p.name.startsWith("Funky.Assign"))
+                                {
+                                        term.writeln(expr);
+                                }
+                        }
+                        catch (Exception ex)
                         {
                                 status = ParseStatus(StatusCode.FAILURE,
-                                        expr.toString,
+                                        ex.msg,
                                         p.position.line + 1,
                                         moduleName
                                 );
-                        }
-                        else if (!p.name.startsWith("Funky.Assign"))
-                        {
-                                term.writeln(expr);
                         }
                 }
                 else if (p.name == "Funky.Import")
@@ -195,41 +200,16 @@ ParseTree child(ParseTree p)
 }
 
 
-// mixin template toExpressionHelper(Type : Expression, string badTypeErrorMsg, ParseTree p, Expression delegate(Type) process)
-// {
-//         auto expr = p.toExpression.evaluate;
-
-//         if (auto inv = cast(InvalidExpr) expr)
-//         {
-//                 return inv;
-//         }
-
-//         if (auto val = cast(Type) expr)
-//         {
-//                 return process(val).evaluate;
-//         }
-
-//         return new InvalidExpr(badTypeErrorMsg.format(p.match, expr.dataType));
-// }
-
-Expression toExpressionHelper(Type : Expression, string badTypeErrorMsg)(
-        ParseTree                 p,
-        Expression delegate(Type) process,
-        Variable[string]          locals
-) {
+Type process(Type : Expression)(ParseTree p, Variable[string] locals, Expression delegate(Type) process)
+{
         auto expr = p.toExpression(locals).evaluate;
-
-        if (auto inv = cast(InvalidExpr) expr)
-        {
-                return inv;
-        }
 
         if (auto val = cast(Type) expr)
         {
-                return process(val).evaluate;
+                return cast(Type) process(val).evaluate;
         }
 
-        return new InvalidExpr(badTypeErrorMsg.format(p.match, expr.dataType));
+        throw new InvalidTypeException!Type(expr.dataType, expr.toString);
 }
 
 package Expression toExpression(ParseTree p, Variable[string] locals)
@@ -237,61 +217,55 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
         // For assignments.
         bool constant;
 
-        // Error messages.
-        enum notArithmetic      = "Value `%s` was expected to be an Arithmetic, not %s.";
-        enum notArray           = "Value `%s` was expected to be an Array, not %s.";
-        enum notArithmeticRange = "Value `%s` used in a range expression was expected to be an Arithmetic, not %s.";
-        enum notLogical         = "Value `%s` was expected to be a Logical, not %s.";
-        enum notStruct          = "Value `%s` was expected to be a Struct, not %s.";
-        enum notFunction        = "Value `%s` was expected to be a Function, not %s.";
-        enum wrongStructField   = "Struct `%s` has no field named `%s`.";
-
         final switch (p.name)
         {
                 case "Funky.Sum", "Funky.Product", "Funky.Power":
                 {
-                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic left)
+                        return p.children[0].process!(Arithmetic)(locals, (left)
                         {
                                 for (int i = 2; i < p.children.length; i += 2)
                                 {
                                         const(string) op = p.children[i - 1].match;
-                                        left = cast(Arithmetic) p.children[i].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic right)
+                                        left = cast(Arithmetic) p.children[i].process!(Arithmetic)(locals, (right)
                                         {
-                                                switch (op)
+                                                Arithmetic aBinOp(string op)()
                                                 {
-                                                        case "+": return cast(Arithmetic) new ArithmeticBinary!"+" (left, right);
-                                                        case "-": return cast(Arithmetic) new ArithmeticBinary!"-" (left, right);
-                                                        case "*": return cast(Arithmetic) new ArithmeticBinary!"*" (left, right);
-                                                        case "/": return cast(Arithmetic) new ArithmeticBinary!"/" (left, right);
-                                                        case "%": return cast(Arithmetic) new ArithmeticBinary!"%" (left, right);
-                                                        default: break;
+                                                        return new ArithmeticBinary!op(left, right);
                                                 }
-                                                return cast(Arithmetic) new ArithmeticBinary!"^^"(left, right);
-                                        }, locals);
+                                                final switch (op)
+                                                {
+                                                        case "+": return aBinOp!"+";
+                                                        case "-": return aBinOp!"-";
+                                                        case "*": return aBinOp!"*";
+                                                        case "/": return aBinOp!"/";
+                                                        case "%": return aBinOp!"%";
+                                                        case "^": return aBinOp!"^^";
+                                                }
+                                        });
                                 }
                                 return left;
-                        }, locals);
+                        });
                 }
 
                 case "Funky.Unary":
                 {
                         const(string) op = p.children[0].match;
-                        return p.children[1].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic right)
+                        return p.children[1].process!(Arithmetic)(locals, (right)
                         {
                                 // Unary `+` doesn't change the value.
                                 return op == "-" ? new ArithmeticUnary!"-"(right) : right;
-                        }, locals);
+                        });
                 }
 
                 case "Funky.ArrayAccess":
                 {
-                        return p.children[0].toExpressionHelper!(Array, notArray)((Array array)
+                        return p.children[0].process!(Array)(locals, (array)
                         {
-                                return p.children[1].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic index)
+                                return p.children[1].process!(Arithmetic)(locals, (index)
                                 {
                                         return array[cast(int) index.value];
-                                }, locals);
-                        }, locals);
+                                });
+                        });
                 }
 
                 case "Funky.ArrayLiteral":
@@ -308,13 +282,13 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.ArraySlice":
                 {
-                        return p.children[0].toExpressionHelper!(Array, notArray)((Array array)
+                        return p.children[0].process!(Array)(locals, (array)
                         {
-                                return p.children[1].toExpressionHelper!(Range, "")((Range range)
+                                return p.children[1].process!(Range)(locals, (range)
                                 {
                                         return array.slice(range);
-                                }, locals);
-                        }, locals);
+                                });
+                        });
                 }
 
                 case "Funky.AssignConstant":
@@ -327,47 +301,41 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                 {
                         if (p.children[0].name == "Funky.Identifier")
                         {
-                                string varname = p.child.match;
+                                string varName = p.child.match;
 
                                 Variable[string]* container = locals ? &locals : &globals;
 
-                                if (varname in *container && (*container)[varname].constant)
+                                if (varName in *container && (*container)[varName].constant)
                                 {
-                                        return new InvalidExpr(
-                                                "Attempting to assign to a constant `%s`.".format(varname)
-                                        );
+                                        throw new ConstantMutationException(varName);
                                 }
 
                                 Expression expr = p.children[1].toExpression(locals);
-                                if (cast(InvalidExpr) expr)
-                                {
-                                        return expr;
-                                }
 
-                                (*container)[varname] = Variable(constant, expr);
+                                (*container)[varName] = Variable(constant, expr);
                                 constant = false;
                                 return expr;
                         }
 
                         if (p.children[0].name == "Funky.ArrayAccess")
                         {
-                                return p.children[0].children[0].toExpressionHelper!(Array, notArray)((Array arr)
+                                return p.children[0].children[0].process!(Array)(locals, (arr)
                                 {
-                                        return p.children[0].children[1].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic index)
+                                        return p.children[0].children[1].process!(Arithmetic)(locals, (index)
                                         {
                                                 arr[cast(int) index.value] = p.children[1].toExpression(locals).evaluate;
                                                 return arr;
-                                        }, locals);
-                                }, locals);
+                                        });
+                                });
                         }
                         
                         if (p.children[0].name == "Funky.StructFieldAccess")
                         {
                                 Expression expr = p.children[1].toExpression(locals).evaluate;
-                                return p.children[0].children[0].toExpressionHelper!(Struct, notStruct)((Struct str)
+                                return p.children[0].children[0].process!(Struct)(locals, (str)
                                 {
                                         return str.field(p.children[0].children[1].match, expr, constant);
-                                }, locals);
+                                });
                         }
                         break;
                 }
@@ -388,12 +356,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                         foreach (ref ch; p.children)
                         {
-                                Expression expr = ch.toExpression(locals);
-                                if (cast(InvalidExpr) expr)
-                                {
-                                        return expr;
-                                }
-                                values ~= expr;
+                                values ~= ch.toExpression(locals);
                         }
 
                         return new Concatenation(values);
@@ -423,29 +386,29 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.Conditional":
                 {
-                        return p.children[0].toExpressionHelper!(Logical, notLogical)((Logical condition)
+                        return p.children[0].process!(Logical)(locals, (condition)
                         {
                                 return condition.value ? p.children[1].toExpression(locals).evaluate
                                                        : p.children[2].toExpression(locals).evaluate;
-                        }, locals);
+                        });
                 }
 
                 case "Funky.Error":
                 {
-                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic value)
+                        return p.children[0].process!(Arithmetic)(locals, (value)
                         {
-                                return p.children[1].toExpressionHelper!(Arithmetic, notArithmetic)((Arithmetic error)
+                                return p.children[1].process!(Arithmetic)(locals, (error)
                                 {
                                         const(double) v = value.value;
                                         const(double) e = error.value;
                                         return new Range(v - e, v + e, true);
-                                }, locals);
-                        }, locals);
+                                });
+                        });
                 }
 
                 case "Funky.FunctionCall":
                 {
-                        return p.children[0].toExpressionHelper!(Function, notFunction)((Function func)
+                        return p.children[0].process!(Function)(locals, (func)
                         {
                                 if (p.children.length < 2)
                                 {
@@ -459,13 +422,13 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                                 }
 
                                 return func.call(args);
-                        }, locals);
+                        });
                 }
 
                 case "Funky.FunctionLiteral":
                 {
                         string[] args;
-                        Variable[string] localVars;
+                        ParseTree[] localsCode;
 
                         int childN;
                         if (p.children[childN].name == "Funky.ArgumentDeclarations")
@@ -477,16 +440,16 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                                 }
                                 ++childN;
                         }
-                        if (p.children[childN].name == "Funky.Identifier")
+                        else if (p.children[childN].name == "Funky.Identifier")
                         {
                                 args = [p.children[childN++].match];
                         }
                         if (p.children[childN].name == "Funky.FunctionLocals")
                         {
-                                
+                                localsCode = p.children[childN].children;
                         }
-                        
-                        return new Function(args, localVars, p.children.back);
+
+                        return new Function(args, localsCode, p.children.back);
                 }
 
                 case "Funky.Identifier":
@@ -498,46 +461,58 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                                 return locals[name].value;
                         }
 
-                        return name in globals ? globals[name].value :
-                                new InvalidExpr("Identifier `%s` is unknown.".format(name));
+                        if (name in globals)
+                        {
+                                return globals[name].value;
+                        }
+
+                        throw new UnknownIdentifierException(name);
                 }
 
                 case "Funky.Or", "Funky.And", "Funky.Xor":
                 {
-                        return p.children[0].toExpressionHelper!(Logical, notLogical)((Logical left)
+                        return p.children[0].process!(Logical)(locals, (left)
                         {
                                 for (int i = 2; i < p.children.length; i += 2)
                                 {
                                         const(string) op = p.children[i - 1].match;
 
-                                        left = cast(Logical) p.children[i].toExpressionHelper!(Logical, notLogical)((Logical right)
+                                        const(bool) lval = left.value;
+                                        if ((op == "|" && !lval) || (op == "&" && lval) || op == "^")
                                         {
-                                                if (op == "|")
+                                                left = cast(Logical) p.children[i].process!(Logical)(locals, (right)
                                                 {
-                                                        return cast(Logical) new LogicalBinary!"||"(left, right);
-                                                }
-                                                if (op == "&")
-                                                {
-                                                        return cast(Logical) new LogicalBinary!"&&"(left, right);
-                                                }
-                                                return cast(Logical) new LogicalBinary!"^"(left, right);
-                                        }, locals);
+                                                        if (op == "|")
+                                                        {
+                                                                return new Boolean(lval || right.value);
+                                                        }
+                                                        if (op == "&")
+                                                        {
+                                                                return new Boolean(lval && right.value);
+                                                        }
+                                                        return new Boolean(lval ^ right.value);
+                                                });
+                                        }
+                                        else
+                                        {
+                                                break;
+                                        }
                                 }
                                 return left;
-                        }, locals);
+                        });
                 }
 
                 case "Funky.Not":
                 {
-                        return p.children[1].toExpressionHelper!(Logical, notLogical)((Logical right)
+                        return p.children[1].process!(Logical)(locals, (right)
                         {
-                                return new LogicalUnary!"!"(right);
-                        }, locals);
+                                return new Boolean(!right.value);
+                        });
                 }
 
                 case "Funky.NumberLiteral":
                 {
-                        return new Number(p.match == "infinity" ? double.infinity : p.match.to!double);
+                        return new Number(p.match.to!double);
                 }
 
                 case "Funky.ArraySliceRange":
@@ -551,28 +526,28 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                         // array[..upper]
                         if (p.children[0].name == "Funky.OpRange")
                         {
-                                return p.children[1].toExpressionHelper!(Arithmetic, notArithmeticRange)((Arithmetic upper)
+                                return p.children[1].process!(Arithmetic)(locals, (upper)
                                 {
                                         return new Range(0, upper.value, p.children[0].match == "...");
-                                }, locals);
+                                });
                         }
 
                         // array[lower..]
-                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmeticRange)((Arithmetic lower)
+                        return p.children[0].process!(Arithmetic)(locals, (lower)
                         {
                                 return new Range(lower.value, -1, p.children[1].match == "...");
-                        }, locals);
+                        });
                 }
 
                 case "Funky.Range":
                 {
-                        return p.children[0].toExpressionHelper!(Arithmetic, notArithmeticRange)((Arithmetic lower)
+                        return p.children[0].process!(Arithmetic)(locals, (lower)
                         {
-                                return p.children[2].toExpressionHelper!(Arithmetic, notArithmeticRange)((Arithmetic upper)
+                                return p.children[2].process!(Arithmetic)(locals, (upper)
                                 {
                                         return new Range(lower.value, upper.value, p.children[1].match == "...");
-                                }, locals);
-                        }, locals);
+                                });
+                        });
                 }
 
                 case "Funky.StringLiteral":
@@ -589,32 +564,19 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                                 string name = ch.children[0].match;
                                 Expression value = ch.children[1].toExpression(locals).evaluate;
 
-                                if (auto inv = cast(InvalidExpr) value)
-                                {
-                                        return inv;
-                                }
-
-                                fields[name] = Variable(ch.child.name == "Funky.AssignConstant" , value);
+                                fields[name] = Variable(ch.child.name == "Funky.AssignConstant", value);
                         }
                         return new Struct("", fields);
                 }
 
                 case "Funky.StructFieldAccess":
                 {
-                        return p.children[0].toExpressionHelper!(Struct, notStruct)((Struct str)
+                        return p.children[0].process!(Struct)(locals, (str)
                         {
-                                Expression field = str.field(p.children[1].match);
-
-                                if (auto inv = cast(InvalidExpr) field)
-                                {
-                                        return new InvalidExpr(wrongStructField
-                                                .format(p.children[0].match, p.children[1].match));
-                                }
-
-                                return field;
-                        }, locals);
+                                return str.field(p.children[1].match);
+                        });
                 }
         }
 
-        return new InvalidExpr("Unrecognised value type `%s`".format(p.name));
+        return new String("Unrecognised value type `%s`".format(p.name));
 }

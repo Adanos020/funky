@@ -1,11 +1,24 @@
-import arsd.terminal;
-
 import funky.interpreter;
+
+import arsd.terminal;
 
 import std.algorithm.searching;
 import std.stdio;
 import std.string;
 
+
+string getCommand(ref Terminal term)
+{
+        try
+        {
+                return term.getline.strip;
+        }
+        catch (UserInterruptionException ex)
+        {
+                // return "exit()";
+                return null;
+        }
+}
 
 void main(string[] args)
 {
@@ -25,12 +38,8 @@ void main(string[] args)
         {
                 term.write(">>> ");
 
-                string command;
-                try
-                {
-                        command = term.getline.strip;
-                }
-                catch (UserInterruptionException ex)
+                string command = term.getCommand;
+                if (!command)
                 {
                         break;
                 }
