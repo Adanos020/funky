@@ -77,3 +77,15 @@ PT trim(PT)(PT p)
         }
         return p;
 }
+
+package:
+
+string match(ParseTree p)
+{
+        return p.matches[0];
+}
+
+ParseTree child(ParseTree p)
+{
+        return p.children[0];
+}

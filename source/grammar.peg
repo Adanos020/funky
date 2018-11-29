@@ -152,17 +152,20 @@ Funky:
 
 # Logical.
 
-        OpNot  <- !"!=" "!"
+        OpNot  <- !"!=" !OpNor !OpNand !OpXnor "!"
         OpOr   <- "|"
         OpAnd  <- "&"
         OpXor  <- "@"
+        OpNor  <- "!|"
+        OpNand <- "!&"
+        OpXnor <- "!@"
         OpIf   <- "?"
         OpElse <- !OpAccess ":"
 
         Logical < And
-        And     < Xor (OpAnd Xor)*
-        Xor     < Or  (OpXor Or )*
-        Or      < Not (OpOr  Not)*
+        And     < Xor ((OpAnd / OpNand) Xor)*
+        Xor     < Or  ((OpXor / OpXnor) Or )*
+        Or      < Not ((OpOr  / OpNor)  Not)*
         Not     < OpNot? Boolean
 
         Boolean < '(' Logical ')'

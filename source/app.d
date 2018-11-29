@@ -22,10 +22,7 @@ string getCommand(ref Terminal term)
 
 void main(string[] args)
 {
-        scope(failure) return;
-
         auto term = Terminal(ConsoleOutputType.linear);
-        auto input = RealTimeConsoleInput(&term, ConsoleInputFlags.allInputEvents);
 
         init(&term);
         importModule("std/init");
@@ -40,7 +37,7 @@ void main(string[] args)
         {
                 term.write(">>> ");
 
-                string command = term.getCommand;
+                const(string) command = term.getCommand;
                 if (!command)
                 {
                         break;
@@ -53,20 +50,21 @@ void main(string[] args)
                         break;
                 }
 
-                if (status.code != StatusCode.SUCCESS)
+                if (status.code == StatusCode.FAILURE)
                 {
-                        term.color(Color.red, Color.DEFAULT);
                         if (status.extra.length)
                         {
                                 status.extra = "\n" ~ status.extra;
                         }
+
+                        term.color(Color.red, Color.DEFAULT);
                         term.writefln(
                                 "Error in %s, line %s: %s%s",
                                 status.moduleName,
                                 status.line,
                                 status.message,
                                 status.extra
-                        );
+                        );                        
                         term.reset;
                 }
         }
