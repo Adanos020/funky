@@ -49,7 +49,6 @@ this     is     a  sample        name
 The main naming convention is:
 - words variable and function names are usually starting with a lower-case letter, except for proper names which are capitalised: `a variable`, `height of the Eiffel tower`
 - words in constant names are all upper-case: `PI`, `PLANCK CONSTANT`
-- all words in class names are always capitalised: `Vector`, `Exit Status`
 
 
 ## Modules
@@ -348,6 +347,4 @@ person :: age <- 21
 person :: biological sex <- "female" -- error: the field `biological sex` is constant
 ```
 
-
-### Classes
-(Currently work in progress.)
+New fields in a struct can be created simply by assigning to a previously unexistent field.

@@ -334,8 +334,7 @@ public:
 
         @property override bool value() const
         {
-                // You must externally make sure that the evaluated value
-                // is a valid Boolean object.
+                // You must externally make sure that the evaluated value is a valid Boolean object.
                 return (cast(Boolean) this.evaluate).value;
         }
 
@@ -433,8 +432,7 @@ public:
 
                 foreach (loc; localsCode)
                 {
-                        // All of these are assignment expressions so they will
-                        // be all assigned to the right container.
+                        // All of these are assignment expressions so they will be all assigned to the right container.
                         loc.toExpression(this.locals);
                 }
 
@@ -650,9 +648,8 @@ class Struct : Expression
 {
 public:
 
-        this(string className, Variable[string] fields)
+        this(Variable[string] fields)
         {
-                this.className = className;
                 this.fields = fields;
         }
 
@@ -679,9 +676,8 @@ public:
         {
                 if (auto str = cast(Struct) rhs)
                 {
-                        return str.className == this.className
-                            && str.fields.length == this.fields.length
-                            && str.fields.keys == this.fields.keys
+                        return str.fields.length == this.fields.length
+                            && str.fields.keys   == this.fields.keys
                             && str.fields.values == this.fields.values
                         ;
                 }
@@ -697,17 +693,23 @@ public:
         override string toString() const
         {
                 string str = "{";
-
-                foreach (key; this.fields.byKey)
+                if (this.fields.length)
                 {
-                        const(Variable) var = this.fields[key];
-                        str ~= "%s %s %s, ".format(key, var.constant ? "<<" : "<-", var.value);
+                        foreach (key; this.fields.byKey)
+                        {
+                                const(Variable) var = this.fields[key];
+                                const(bool) isString = var.value.dataType == "String";
+
+                                str ~= "%s %s %s, ".format(key, var.constant ? "<<" : "<-",
+                                        isString ? `"` ~ var.value.toString ~ `"` : var.value.toString);
+                        }
+
+                        str.length -= 2;
                 }
 
-                str.length -= 2;
                 str ~= "}";
 
-                return this.className ~ str.idup;
+                return str.idup;
         }
 
         override string dataType() const
@@ -715,9 +717,8 @@ public:
                 return "Struct";
         }
 
-private:
+package:
 
-        string className;
         Variable[string] fields;
 }
 
@@ -758,6 +759,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                                                 {
                                                         return new Number(mixin("left.value" ~ op ~ "right.value"));
                                                 }
+
                                                 final switch (op)
                                                 {
                                                         case "+": return aBinOp!"+";
@@ -869,11 +871,6 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                 case "Funky.BooleanLiteral":
                 {
                         return new Boolean(p.match.to!bool);
-                }
-
-                case "Funky.Class":
-                {
-                        break;
                 }
 
                 case "Funky.Concatenation":
@@ -1080,20 +1077,21 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                 case "Funky.StringLiteral":
                 {
                         // Each StringLiteral has a StringContent child.
-                        return new String(p.child.match);
+                        return new String(p.children.length ? p.child.match : "");
                 }
 
                 case "Funky.StructLiteral":
                 {
                         Variable[string] fields;
-                        foreach (ref ch; p.child.children)
+
+                        if (p.children.length) foreach (ref ch; p.child.children)
                         {
                                 string name = ch.children[0].match;
                                 Expression value = ch.children[1].toExpression(locals).evaluate;
 
                                 fields[name] = Variable(ch.child.name == "Funky.AssignConstant", value);
                         }
-                        return new Struct("", fields);
+                        return new Struct(fields);
                 }
 
                 case "Funky.StructFieldAccess":
