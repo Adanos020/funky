@@ -59,3 +59,12 @@ class TooFewArgumentsException : Exception
                 super("Function called with %s arguments while %s is required.".format(given, required));
         }
 }
+
+class WrongSliceRangeException : Exception
+{
+        this(double lower, double upper, bool inclusive)
+        {
+                super("Lower bound of the range [%s, %s%c is greater than the upper.."
+                        .format(lower, upper, inclusive ? ']' : ')'));
+        }
+}

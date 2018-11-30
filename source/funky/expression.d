@@ -31,185 +31,10 @@ interface Expression
         string dataType() const;
 }
 
-// VALUES AND OPERATORS
-
-mixin template ValueType(string Value, string BaseValue, Primitive, string[] BinOps = [], string[] UnOps = [], size_t line = __LINE__)
+interface Logical : Expression
 {
-        pragma(msg, "expression.d, line %s: Generated %s expression with %s as base value and %s as the primitive type."
-                .format(line, Value, BaseValue, Primitive.stringof));
-
-        enum COMMON_MEMBERS = `
-                static if (UnOps.length)
-                ` ~ BaseValue ~ ` opUnary(string op)() const
-                        if (UnOps.canFind(op))
-                {
-                        return new ` ~ BaseValue ~ `(mixin(op ~ "this.value"));
-                }
-
-                static if (BinOps.length)
-                ` ~ BaseValue ~ ` opBinary(string op)(inout ` ~ Value ~ ` rhs) const
-                        if (BinOps.canFind(op))
-                {
-                        return new ` ~ BaseValue ~ `(mixin("this.value" ~ op ~ "rhs.value"));
-                }
-
-                override bool opEquals(Object o) const
-                {
-                        if (auto rhs = cast(Expression) o)
-                        {
-                                if (auto res = cast(` ~ BaseValue ~ `) rhs.evaluate)
-                                {
-                                        return res.value == this.value;
-                                }
-                                static if (Value == "Arithmetic")
-                                {
-                                        if (auto res = cast(Range) rhs)
-                                        {
-                                                return res.contains(this.value);
-                                        }
-                                }
-                        }
-                        return false;
-                }
-
-                int opCmp()(inout Expression rhs) const
-                {
-                        if (!rhs || !cast(` ~ BaseValue ~ `) rhs.evaluate) { return -1; }
-                        static if (is(Primitive == double))
-                        {
-                                return cast(int)(this.value - (cast(Number) rhs.evaluate).value);
-                        }
-                        else
-                        {
-                                return (cast(`~ BaseValue ~`) rhs.evaluate).value.cmp(this.value);
-                        }
-                }
-
-                override string toString() const
-                {
-                        static if (is(Primitive == string))
-                        {
-                                return this.value;
-                        }
-                        else
-                        {
-                                return this.value.to!string;
-                        }
-                }
-        `;
-
-        mixin (`
-                interface ` ~ Value ~ ` : Expression
-                {
-                        Primitive value() const;
-                }
-
-                class ` ~ BaseValue ~ ` : ` ~ Value ~ `
-                {
-                public:
-
-                        this(Primitive val)
-                        {
-                                this.val = val;
-                        }
-
-                        override Expression evaluate() const
-                        {
-                                return cast(Expression) this;
-                        }
-
-                        @property override Primitive value() const
-                        {
-                                return this.val;
-                        }
-
-                        string dataType() const
-                        {
-                                return BaseValue;
-                        }
-
-                        ` ~ COMMON_MEMBERS ~ `
-
-                private:
-
-                        Primitive val;
-                }
-
-                static if (UnOps.length)
-                class ` ~ Value ~ `Unary(string OP) : ` ~ Value ~ `
-                        if (UnOps.canFind(OP))
-                {
-                public:
-
-                        this(` ~ Value ~ ` rhs)
-                        {
-                                this.rhs = rhs;
-                        }
-
-                        override Expression evaluate() const
-                        {
-                                return cast(Expression) mixin(OP ~ "(cast(` ~ BaseValue ~ `) this.rhs)");
-                        }
-
-                        @property override Primitive value() const
-                        {
-                                return (cast(` ~ Value ~ `) this.evaluate).value;
-                        }
-
-                        string dataType() const
-                        {
-                                return Value ~ "Unary";
-                        }
-
-                        ` ~ COMMON_MEMBERS ~ `
-
-                private:
-
-                        ` ~ Value ~ ` rhs;
-                }
-
-                static if (BinOps.length)
-                class ` ~ Value ~ `Binary(string OP) : ` ~ Value ~ `
-                        if (BinOps.canFind(OP))
-                {
-                public:
-
-                        this(` ~ Value ~ ` lhs, ` ~ Value ~ ` rhs)
-                        {
-                                this.lhs = lhs;
-                                this.rhs = rhs;
-                        }
-
-                        override Expression evaluate() const
-                        {
-                                return cast(Expression) mixin(
-                                        "((cast(` ~ BaseValue ~ `) this.lhs.evaluate)" ~ OP ~
-                                        " (cast(` ~ BaseValue ~ `) this.rhs.evaluate))"
-                                );
-                        }
-
-                        @property override Primitive value() const
-                        {
-                                return (cast(` ~ Value ~ `) this.evaluate).value;
-                        }
-
-                        string dataType() const
-                        {
-                                return Value ~ "Binary";
-                        }
-
-                        ` ~ COMMON_MEMBERS ~ `
-
-                private:
-
-                        ` ~ Value ~ ` lhs;
-                        ` ~ Value ~ ` rhs;
-                }
-        `);
+        bool value() const;
 }
-
-mixin ValueType!("Arithmetic", "Number",  double, ["+", "-", "*", "/", "%", "^^"], ["+", "-"]);
-mixin ValueType!("Logical", "Boolean", bool);
 
 // ARRAY
 
@@ -272,7 +97,11 @@ public:
 
                 if (begin > end)
                 {
-                        return new Array(this.values[begin .. $] ~ this.values[0 .. end]);
+                        throw new WrongSliceRangeException(
+                                sliceRange.lower,
+                                sliceRange.upper,
+                                sliceRange.inclusive
+                        );
                 }
                 return new Array(this.values[begin .. end]);
         }
@@ -341,6 +170,60 @@ private:
         Expression[] values;
 }
 
+// BOOLEAN
+
+class Boolean : Logical
+{
+public:
+
+        this(bool val)
+        {
+                this.val = val;
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        @property bool value() const
+        {
+                return this.val;
+        }
+
+        string dataType() const
+        {
+                return "Boolean";
+        }
+
+        override bool opEquals(Object o) const
+        {
+                if (auto rhs = cast(Expression) o)
+                {
+                        if (auto res = cast(Boolean) rhs.evaluate)
+                        {
+                                return res.value == this.value;
+                        }
+                }
+                return false;
+        }
+
+        int opCmp()(inout Expression rhs) const
+        {
+                if (!rhs || !cast(Boolean) rhs.evaluate) { return -1; }
+                return cast(int) (this.value - (cast(Boolean) rhs.evaluate).value);
+        }
+
+        override string toString() const
+        {
+                return this.value.to!string;
+        }
+
+private:
+
+        bool val;
+}
+
 // RELATIONAL OPERATIONS
 
 class Comparison : Logical
@@ -369,7 +252,6 @@ public:
                         auto lhs = compared[i].evaluate;
                         auto rhs = compared[i + 1].evaluate;
 
-                        enum notArithmetic = "Value `%s` was expected to be an Arithmetic, not %s.";
                         final switch (op)
                         {
                                 case "=":
@@ -388,11 +270,11 @@ public:
                                 {
                                         if (!cast(Number) lhs)
                                         {
-                                                throw new InvalidTypeException!(Arithmetic)(lhs.dataType, lhs.toString);
+                                                throw new InvalidTypeException!(Number)(lhs.dataType, lhs.toString);
                                         }
                                         if (!cast(Number) rhs)
                                         {
-                                                throw new InvalidTypeException!(Arithmetic)(rhs.dataType, rhs.toString);
+                                                throw new InvalidTypeException!(Number)(rhs.dataType, rhs.toString);
                                         }
                                         result = new Boolean(result.value && cast(Number) lhs > cast(Number) rhs);
                                         break;
@@ -402,11 +284,11 @@ public:
                                 {
                                         if (!cast(Number) lhs)
                                         {
-                                                throw new InvalidTypeException!(Arithmetic)(lhs.dataType, lhs.toString);
+                                                throw new InvalidTypeException!(Number)(lhs.dataType, lhs.toString);
                                         }
                                         if (!cast(Number) rhs)
                                         {
-                                                throw new InvalidTypeException!(Arithmetic)(rhs.dataType, rhs.toString);
+                                                throw new InvalidTypeException!(Number)(rhs.dataType, rhs.toString);
                                         }
                                         result = new Boolean(result.value && cast(Number) lhs >= cast(Number) rhs);
                                         break;
@@ -416,11 +298,11 @@ public:
                                 {
                                         if (!cast(Number) lhs)
                                         {
-                                                throw new InvalidTypeException!(Arithmetic)(lhs.dataType, lhs.toString);
+                                                throw new InvalidTypeException!(Number)(lhs.dataType, lhs.toString);
                                         }
                                         if (!cast(Number) rhs)
                                         {
-                                                throw new InvalidTypeException!(Arithmetic)(rhs.dataType, rhs.toString);
+                                                throw new InvalidTypeException!(Number)(rhs.dataType, rhs.toString);
                                         }
                                         result = new Boolean(result.value && cast(Number) lhs < cast(Number) rhs);
                                         break;
@@ -430,11 +312,11 @@ public:
                                 {
                                         if (!cast(Number) lhs)
                                         {
-                                                throw new InvalidTypeException!(Arithmetic)(lhs.dataType, lhs.toString);
+                                                throw new InvalidTypeException!(Number)(lhs.dataType, lhs.toString);
                                         }
                                         if (!cast(Number) rhs)
                                         {
-                                                throw new InvalidTypeException!(Arithmetic)(rhs.dataType, rhs.toString);
+                                                throw new InvalidTypeException!(Number)(rhs.dataType, rhs.toString);
                                         }
                                         result = new Boolean(result.value && cast(Number) lhs <= cast(Number) rhs);
                                         break;
@@ -580,6 +462,68 @@ private:
         Variable[string] locals;
         ParseTree[] localsCode;
         ParseTree code;
+}
+
+// NUMBER
+
+class Number : Expression
+{
+public:
+
+        this(double val)
+        {
+                this.val = val;
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        @property double value() const
+        {
+                return this.val;
+        }
+
+        string dataType() const
+        {
+                return "Number";
+        }
+
+        override bool opEquals(Object o) const
+        {
+                if (auto rhs = cast(Expression) o)
+                {
+                        if (auto res = cast(Number) rhs.evaluate)
+                        {
+                                return res.value == this.value;
+                        }
+                        if (auto res = cast(Range) rhs)
+                        {
+                                return res.contains(this.value);
+                        }
+                }
+                return false;
+        }
+
+        int opCmp()(inout Expression rhs) const
+        {
+                if (!rhs || !cast(Number) rhs.evaluate) { return -1; }
+                return cast(int) (this.value - (cast(Number) rhs.evaluate).value);
+        }
+
+        override string toString() const
+        {
+                if (this.value == this.value.floor)
+                {
+                        return "%d".format(cast(long) this.value);
+                }
+                return "%g".format(this.value);
+        }
+
+private:
+
+        double val;
 }
 
 // NUMBER RANGES
@@ -781,7 +725,7 @@ private:
 private Expression process(Type : Expression, size_t line = __LINE__)
                   (ParseTree p, Variable[string] locals, Expression delegate(Type) process)
 {
-        pragma(msg, "interpreter.d, line %s: Generated expression processing for type %s."
+        pragma(msg, "funky/expression.d, line %s: Generated expression processing for type %s."
                         .format(line, Type.stringof));
 
         auto expr = p.toExpression(locals).evaluate;
@@ -803,16 +747,16 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
         {
                 case "Funky.Sum", "Funky.Product", "Funky.Power":
                 {
-                        return p.children[0].process!(Arithmetic)(locals, (left)
+                        return p.children[0].process!(Number)(locals, (left)
                         {
                                 for (int i = 2; i < p.children.length; i += 2)
                                 {
                                         const(string) op = p.children[i - 1].match;
-                                        left = cast(Arithmetic) p.children[i].process!(Arithmetic)(locals, (right)
+                                        left = cast(Number) p.children[i].process!(Number)(locals, (right)
                                         {
-                                                Arithmetic aBinOp(string op)()
+                                                Number aBinOp(string op)()
                                                 {
-                                                        return new ArithmeticBinary!op(left, right);
+                                                        return new Number(mixin("left.value" ~ op ~ "right.value"));
                                                 }
                                                 final switch (op)
                                                 {
@@ -832,10 +776,10 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                 case "Funky.Unary":
                 {
                         const(string) op = p.children[0].match;
-                        return p.children[1].process!(Arithmetic)(locals, (right)
+                        return p.children[1].process!(Number)(locals, (right)
                         {
                                 // Unary `+` doesn't change the value.
-                                return op == "-" ? new ArithmeticUnary!"-"(right) : right;
+                                return new Number(op == "-" ? -right.value : right.value);
                         });
                 }
 
@@ -843,7 +787,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                 {
                         return p.children[0].process!(Array)(locals, (array)
                         {
-                                return p.children[1].process!(Arithmetic)(locals, (index)
+                                return p.children[1].process!(Number)(locals, (index)
                                 {
                                         return array[cast(int) index.value];
                                 });
@@ -903,7 +847,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                         {
                                 return p.child.children[0].process!(Array)(locals, (arr)
                                 {
-                                        return p.children[0].children[1].process!(Arithmetic)(locals, (index)
+                                        return p.children[0].children[1].process!(Number)(locals, (index)
                                         {
                                                 arr[cast(int) index.value] = p.children[1].toExpression(locals).evaluate;
                                                 return arr;
@@ -977,9 +921,9 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.Error":
                 {
-                        return p.children[0].process!(Arithmetic)(locals, (value)
+                        return p.children[0].process!(Number)(locals, (value)
                         {
-                                return p.children[1].process!(Arithmetic)(locals, (error)
+                                return p.children[1].process!(Number)(locals, (error)
                                 {
                                         const(double) v = value.value;
                                         const(double) e = error.value;
@@ -1109,14 +1053,14 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                         // array[..upper]
                         if (p.children[0].name == "Funky.OpRange")
                         {
-                                return p.children[1].process!(Arithmetic)(locals, (upper)
+                                return p.children[1].process!(Number)(locals, (upper)
                                 {
                                         return new Range(0, upper.value, p.children[0].match == "...");
                                 });
                         }
 
                         // array[lower..]
-                        return p.children[0].process!(Arithmetic)(locals, (lower)
+                        return p.children[0].process!(Number)(locals, (lower)
                         {
                                 return new Range(lower.value, -1, p.children[1].match == "...");
                         });
@@ -1124,9 +1068,9 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.Range":
                 {
-                        return p.children[0].process!(Arithmetic)(locals, (lower)
+                        return p.children[0].process!(Number)(locals, (lower)
                         {
-                                return p.children[2].process!(Arithmetic)(locals, (upper)
+                                return p.children[2].process!(Number)(locals, (upper)
                                 {
                                         return new Range(lower.value, upper.value, p.children[1].match == "...");
                                 });
