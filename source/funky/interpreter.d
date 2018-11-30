@@ -117,9 +117,30 @@ ParseStatus interpret(string code, string moduleName = "console")
                                         throw new Exception("Null expression.");
                                 }
 
+                                expr = expr.evaluate;
+
+                                if (auto sct = cast(Struct) expr)
+                                {
+                                        if (sct.fields.length == 2 &&
+                                                "error code" in sct.fields && "message" in sct.fields)
+                                        {
+                                                if (auto ec = cast(Number) sct.field("error code"))
+                                                {
+                                                        status = ec.value == 0 ?
+                                                                ParseStatus(
+                                                                        StatusCode.EXIT
+                                                                ) :
+                                                                ParseStatus(
+                                                                        StatusCode.FAILURE,
+                                                                        sct.field("message").toString
+                                                                );
+                                                        return;
+                                                }
+                                        }
+                                }
                                 if (!p.name.startsWith("Funky.Assign"))
                                 {
-                                        term.writeln(expr.evaluate);
+                                        term.writeln(expr);
                                 }
                         }
                         catch (Exception ex)
