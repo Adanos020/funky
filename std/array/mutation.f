@@ -3,7 +3,7 @@ import std/array/functional
 
 -- Mutation
 fill (array, value) ->
-        empty (array) ? [] : [value] ~ fill (array[1...], value)
+    empty (array) ? [] : [value] ~ fill (array[1...], value)
 
 remove (array, index) ->
-        in bounds (array, index) ? array[..index] ~ array[index + 1...] : array
+    in bounds (array, index) ? array[..index] ~ array[index + 1...] : array
