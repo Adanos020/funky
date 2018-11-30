@@ -4,7 +4,7 @@ Interpreter for my simple functional language, created for educational purposes.
 
 
 # How to build and use
-Use [DuB](https://code.dlang.org/getting_started) for building.
+Use [DUB](https://code.dlang.org/getting_started) for building.
 
 To use the interpreter simply put the `./funky` command and as arguments pass paths to the source files that you want to execute.
 ```bash
@@ -329,7 +329,9 @@ even numbers -- [2, 4, 6, 8]
 
 
 ## Structures
-Structs work almost like objects in JavaScript, with an exception that you can also create constant fields for them.
+(Still work in progress, yet some functionality is currently available.)
+
+Structs are just packs of values, created with the following notation.
 ```haskell
 person <- {
     name <- "Adam",
@@ -346,5 +348,6 @@ person :: age <- 21
 person :: biological sex <- "female" -- error: the field `biological sex` is constant
 ```
 
+
 ### Classes
-Currently work in progress.
+(Currently work in progress.)
