@@ -93,7 +93,7 @@ Funky:
 
         Concatenation < JoinableInitial (;OpConcatenate JoinableValue)+
 
-        FunctionLiteral      < ('(' ArgumentDeclarations? ')' / Identifier) (':' FunctionLocals)? ;OpReturn Expression
+        FunctionLiteral      < ('(' ArgumentDeclarations? ')' / Identifier) ('{' FunctionLocals '}')? ;OpReturn Expression
         FunctionCall         < ('(' FunctionLiteral ')' / SafeConditional / VagueExpression) '(' FunctionArguments? ')'
         FunctionLocals       < List(Assignment){ trimOnce }
         ArgumentDeclarations < List(Identifier){ trimOnce }
