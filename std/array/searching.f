@@ -4,23 +4,29 @@ import std/array/bound-checks
 can find (array, value) ->
     can find if (array, x -> x = value)
 
-can find if (array, pred) ->
-    !empty (array) & (pred (array[0]) | can find (array[1...], value))
+can find if (array, predicate) ->
+    array != [] & (predicate (array[0]) | can find if (array[1...], predicate))
 
 find (array, value) ->
     find if (array, v -> v = value)
 
-find if (array, pred) ->
-    empty (array) | pred (array[0]) ? array : find if (array[1...], pred)
+find if (array, predicate) ->
+    array = [] | predicate (array[0]) ? array : find if (array[1...], predicate)
 
-find index (array, pred) ->
-    find index if (array, v -> pred (v))
+find index (array, value) ->
+    find index if (array, x -> x = value)
 
-find index if (array, pred) ->
-    length (array) - length (find if (array, pred))
+find index if (array, predicate) {
+    len <- length (array),
+    index <- len - length (find if (array, predicate))
+} ->
+    index = len ? -1 : index
 
 count (array, value) ->
-    count if (array, v -> v = value)
+    count if (array, x -> x = value)
 
-count if (array, pred) ->
-    !empty (array) & pred (array[0]) ? 1 + count if (array[1...], pred) : 0
+count if (array, predicate) {
+    end <- array = [],
+    add <- !end & predicate (array[0]) ? 1 : 0
+} ->
+    add + (end ? 0 : count if (array[1...], predicate))

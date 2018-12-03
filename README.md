@@ -243,8 +243,6 @@ a = b = c -- equivalent to: a = b & b = c
 a < b < c -- equivalent to: a < b & b < c
 ```
 
-*(The following is still work in progress:)*
-
 You can check whether a number is in a certain range with the following notation:
 ```haskell
 value = lower .. higher
@@ -280,7 +278,7 @@ They are the fundamental concept in functional programming. Functions can be cre
 --  name  parameters    return value
 ```
 
-Which is the shorthand for:
+Which is the shorthand notation for:
 ```haskell
 is even <- (number) -> number % 2 == 0
 --         \_________________________/
@@ -294,13 +292,14 @@ say hello () -> "Hello, world!" -- takes no parameters
 min (a, b) -> a < b ? a : b     -- more than 1 parameters must be separated by commas
 ```
 
-Functions can have local variables which are resolved before the return value. Simply list them after a colon `:` and before the rightward arrow `->`, each separated with a comma.
+Functions can have local variables which are resolved before the return value. Simply list them in curly brackets after the closing parenthesis `)` and before the rightward arrow `->`, each separated with a comma.
 ```haskell
 -- possible implementation of the +- operator
-fits in error bar (number, error):
+fits in error bar (number, error) {
     lower bound <- number - error,
     upper bound <- number + error
-    -> lower bound <= error <= upper bound
+} ->
+    lower bound <= error <= upper bound
 ```
 
 After creating a function you can call it just by insertting its name and the list of parameters inside following parentheses.
@@ -316,10 +315,11 @@ a lot <- factorial (9) -- 362880
 ### Lambdas
 Functions, as all other values, can be passed as parameters, although you don't need to assign them to any variable to do that. What you can do is make use of anonymous functions, also known as lambda expressions. In fact, the function literal shown some sections above is a lambda expression.
 ```haskell
-filter (array, predicate):
-    result <- array != [] & predicate (array[0]) ?
-              [array[0]] : []
-    -> result ~ filter (array[1...], predicate)
+filter (array, predicate) {
+    no elements <- array = [],
+    appended <- !no elements & predicate (array[0]) ? [array[0]] : []
+} ->
+    no elements ? [] : appended ~ filter (array[1...], predicate)
 
 even numbers <- filter ([1, 2, 3, 4, 5, 6, 7, 8],
                         x -> x % 2 == 0) -- with exactly one argument no parentheses are required

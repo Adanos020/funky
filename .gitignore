@@ -28,3 +28,4 @@ docs/
 # Other garbage
 tree.*
 .vscode
+test.f

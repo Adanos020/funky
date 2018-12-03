@@ -39,40 +39,6 @@ void init(Terminal* terminal)
         term = terminal;
 }
 
-ParseStatus importModule(string modulePath)
-{
-        scope(failure)
-        {
-                return ParseStatus(
-                        StatusCode.FAILURE,
-                        "Could not import module: `%s`".format(modulePath)
-                );
-        }
-
-        if (importedModules.canFind(modulePath))
-        {
-                return ParseStatus(StatusCode.SUCCESS);
-        }
-
-        if (modulePath.exists && modulePath.isDir)
-        {
-                foreach (entry; dirEntries(modulePath, SpanMode.depth))
-                {
-                        // Removing file extension from filename. ↓
-                        ParseStatus status = importModule(entry.array.retro.find(".").retro.chop);
-                        if (status.code == StatusCode.FAILURE)
-                        {
-                                return status;
-                        }
-                }
-                return ParseStatus(StatusCode.SUCCESS);
-        }
-
-        string code = readText(modulePath ~ fileExtension);
-        importedModules ~= modulePath;
-        return code.interpret(modulePath);
-}
-
 ParseStatus interpret(string code, string moduleName = "console")
 {
         auto tree = Funky(code).trim;
@@ -169,6 +135,46 @@ ParseStatus interpret(string code, string moduleName = "console")
         processTree(tree);
 
         return status;
+}
+
+ParseStatus importModule(string modulePath)
+{
+        scope(failure)
+        {
+                return ParseStatus(
+                        StatusCode.FAILURE,
+                        "Could not import module: `%s`".format(modulePath)
+                );
+        }
+
+        if (importedModules.canFind(modulePath))
+        {
+                return ParseStatus(StatusCode.SUCCESS);
+        }
+
+        if (modulePath.exists && modulePath.isDir)
+        {
+                foreach (entry; dirEntries(modulePath, SpanMode.depth))
+                {
+                        // Removing file extension from filename. ↓
+                        ParseStatus status = importModule(entry.array.retro.find(".").retro.chop);
+                        if (status.code == StatusCode.FAILURE)
+                        {
+                                return status;
+                        }
+                }
+                return ParseStatus(StatusCode.SUCCESS);
+        }
+
+        string code = readText(modulePath ~ fileExtension);
+        ParseStatus interpreted = code.interpret(modulePath);
+
+        if (interpreted.code != StatusCode.FAILURE)
+        {
+                importedModules ~= modulePath;
+        }
+        
+        return interpreted;
 }
 
 
