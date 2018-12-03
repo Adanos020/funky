@@ -21,7 +21,7 @@ While designing the syntax I was inspired mainly by syntaxes of Haskell, C++, D,
 "Hello, world!"
 ```
 
-There's no special function for printing things in the console. To print anything – just insert it and it's done.
+There's no special function for printing things in the console. To print anything – just input it and it's done.
 
 
 ## Identifiers
@@ -67,12 +67,12 @@ Funky supports only single line comments.
 
 
 ## Variables
-In order to create or assign to a variable, simply insert its name, a leftward arrow `<-`, and the value.
+In order to create or assign to a variable, simply input its name, a leftward arrow `<-`, and the value.
 ```
 some number <- 10
 ```
 
-You can also create constants, you only need to insert a double leftward arrow `<<` instead of the single one. **Note:** you cannot reassign to a constant!
+You can also create constants, you only need to input a double leftward arrow `<<` instead of the single one. **Note:** you cannot reassign to a constant!
 ```
 GRAVITATIONAL CONSTANT << 6.67408e-10
 GRAVITATIONAL CONSTANT << 7 == error!
@@ -91,7 +91,7 @@ bipolar <- "who am I"
 ```
 
 ## Arithmetics
-To make a number literal, simply insert digits. You can insert a decimal point if you need too. In longer numbers you can insert spaces for readability (as in identifiers, number of spaces is ignored).
+To make a number literal, simply input digits. You can input a decimal point if you need too. In longer numbers you can input spaces for readability (as in identifiers, number of spaces is ignored).
 ```
 dozen <- 12
 PI << 3.14 159 265 359
@@ -122,11 +122,11 @@ will be evaluated like this:
 
 A string literal is composed of any string of characters surrounded by two quotation marks, `"like this"`.
 
-If you want to insert a quotation mark inside a string, you need to insert a backslash before it: `"as Einstein said someday: \"no\"."`.
+If you want to input a quotation mark inside a string, you need to input a backslash before it: `"as Einstein said someday: \"no\"."`.
 
-Because backslash makes its following character escaped, to insert an actual backslash in a string you got to insert two of them, right next to each other: `"this is a backslash: \\"`.
+Because backslash makes its following character escaped, to input an actual backslash in a string you got to input two of them, right next to each other: `"this is a backslash: \\"`.
 
-To join two strings together simply insert the `~` character between both of them.
+To join two strings together simply input the `~` character between both of them.
 ```
 greeting  <- "Hello"
 addressee <- "world"
@@ -142,7 +142,7 @@ You can also join other types of values, provided a string is the first in the c
 
 
 ## Arrays
-To create an array of values simply insert square brackets and list all the values, separated by commas. Values of different types can be stored in one array.
+To create an array of values simply input square brackets and list all the values, separated by commas. Values of different types can be stored in one array.
 ```
 some random array <- [21, 37, "those are totally random numbers", true]
 ```

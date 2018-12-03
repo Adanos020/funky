@@ -14,6 +14,6 @@ length (array) -> empty (array) ? 0 : 1 + length (array[1...])
 == Returns: Boolean
 ==     True if the index is in range (-len + 1; len), false otherwise.
 in bounds (array, index) {
-    len <- length (array)
+    len << length (array)
 } ->
     index = -len + 2 .. len
