@@ -1,3 +1,4 @@
+== Constructs an object used as exit status.
 EXIT STATUS << (error code, message) -> {
         error code <- error code,
         message <- message

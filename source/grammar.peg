@@ -8,7 +8,7 @@ Funky:
         EOF    <: !.
 
         Spacing <: (Comment / Whites)*
-        Comment <: "--" (!EOL !EOF .)* (EOL / EOF)
+        Comment <: "==" (!EOL !EOF .)* (EOL / EOF)
 
         List(What) < What ([,] What)*
 
@@ -119,7 +119,7 @@ Funky:
                 ('e' ('+' / '-')? Digit+)? # Optional scientific notation.
         ) / ;KwordInfinity / ;KwordNaN
 
-        OpSum      <- !"+-" "+" / !"--" "-"
+        OpSum      <- !"+-" "+" / "-"
         OpProduct  <- "*" / "/" / "%"
         OpPower    <- "^"
 
@@ -167,7 +167,7 @@ Funky:
 
         OpRange <- "..." / ".."
         OpError <- "+-"
-        OpCmp   <- "=" / "!="
+        OpCmp   <- !"==" "=" / "!="
                 / "<=" / !OpConstant !OpVariable "<"
                 / ">=" / ">"
 
