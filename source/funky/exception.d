@@ -1,5 +1,7 @@
 module funky.exception;
 
+import funky.expression;
+
 import std.exception;
 import std.string;
 
@@ -54,9 +56,9 @@ class NotConcatenatableException : Exception
 
 class TooFewArgumentsException : Exception
 {
-        this(size_t given, size_t required)
+        this(Function func, size_t given, size_t required)
         {
-                super("Function called with %s arguments while %s is required.".format(given, required));
+                super("Given function:\n%s\nwas called with %s arguments while %s is required.".format(func, given, required));
         }
 }
 

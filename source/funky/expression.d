@@ -422,7 +422,7 @@ public:
         {
                 if (args.length != this.argNames.length)
                 {
-                        throw new TooFewArgumentsException(args.length, this.argNames.length);
+                        throw new TooFewArgumentsException(this, args.length, this.argNames.length);
                 }
 
                 foreach (i, arg; args)
@@ -446,7 +446,15 @@ public:
 
         override string toString() const
         {
-                return "(%-(%s,%))->%s".format(argNames, code.matches.join);
+                string str;
+                if (!this.localsCode.empty)
+                {
+                        str = " {\n    %-(%s,\n    %)\n}".format(
+                                this.localsCode.map!(lc => lc.matches.join).array
+                        );
+                }
+                
+                return "(%-(%s, %))%s -> %s".format(argNames, str, code.matches.join);
         }
 
         override string dataType() const
@@ -494,11 +502,11 @@ public:
                 {
                         if (auto res = cast(Number) rhs.evaluate)
                         {
-                                return res.value == this.value;
+                                return res.val == this.val;
                         }
                         if (auto res = cast(Range) rhs)
                         {
-                                return res.contains(this.value);
+                                return res.contains(this.val);
                         }
                 }
                 return false;
@@ -507,16 +515,16 @@ public:
         int opCmp()(inout Expression rhs) const
         {
                 if (!rhs || !cast(Number) rhs.evaluate) { return -1; }
-                return cast(int) (this.value - (cast(Number) rhs.evaluate).value);
+                return cast(int) (this.val - (cast(Number) rhs.evaluate).val);
         }
 
         override string toString() const
         {
-                if (this.value == this.value.floor)
+                if (this.val == this.val.floor)
                 {
-                        return "%d".format(cast(long) this.value);
+                        return "%d".format(cast(long) this.val);
                 }
-                return "%g".format(this.value);
+                return "%g".format(this.val);
         }
 
 private:
@@ -551,6 +559,10 @@ public:
                                 return this.lower     == range.lower
                                     && this.upper     == range.upper
                                     && this.inclusive == range.inclusive;
+                        }
+                        if (auto number = cast(Number) rhs.evaluate)
+                        {
+                                return this.contains(number.value);
                         }
                 }
                 return false;
@@ -709,7 +721,7 @@ public:
 
                 str ~= "}";
 
-                return str.idup;
+                return str;
         }
 
         override string dataType() const
