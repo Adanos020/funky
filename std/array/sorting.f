@@ -1,9 +1,8 @@
-import std/array/bound-checks
 import std/array/functional
 
 -- Sorting
 sort (array) {
-    end <- empty (array),
+    end <- array = [],
     less <- end ? [] : filter (array, x -> x <  array[0]),
     more <- end ? [] : filter (array, x -> x >= array[0])
 } ->

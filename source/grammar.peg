@@ -42,69 +42,6 @@ Funky:
 
 # Values.
 
-        Digit <- [0-9] NameSpacing?
-        NumberLiteral <{ stripNumber } ~(
-                Digit+                     # Sequence of digits.
-                ('.' Digit+)?              # Optional decimal point.
-                ('e' ('+' / '-')? Digit+)? # Optional scientific notation.
-        ) / ;KwordInfinity / ;KwordNaN
-
-        BooleanLiteral <- ;KwordTrue / ;KwordFalse
-
-        StringContent <~ (!["] ('\\' ["] / .))*
-        StringLiteral <- ["] StringContent ["]
-
-        ArrayContent < List(Expression){ trimOnce }
-        ArrayLiteral < '[' ArrayContent? ']'
-        ArrayAccess  < (ArraySlice / MaybeAnArray) '[' ArrayIndexValue ']'
-        ArraySlice   < (ArraySlice / MaybeAnArray) '[' ArraySliceRange ']'
-
-        MaybeAnArray < '(' MaybeAnArray ')'
-                     | Concatenation
-                     | ArrayLiteral
-                     | SafeConditional
-                     | VagueExpression
-
-        ArrayIndexValue < Arithmetic / Conditional / VagueExpression
-        ArraySliceRange < (
-                ArrayIndexValue OpRange ArrayIndexValue /
-                ArrayIndexValue OpRange                 /
-                                OpRange ArrayIndexValue
-        )
-
-        OpConcatenate <- "~"
-        JoinableInitial < StringLiteral / ArraySlice / ArrayLiteral / SafeConditional / VagueExpression
-        JoinableValue < '(' JoinableValue ')'
-                      | Arithmetic
-                      | ArraySlice
-                      | ArrayLiteral
-                      | AssignConstant
-                      | AssignFunction
-                      | AssignVariable
-                      | BooleanLiteral
-                      | SafeConditional
-                      | FunctionLiteral
-                      | Logical
-                      | NumberLiteral
-                      | StructLiteral
-                      | SafeConditional
-                      | StringLiteral
-                      | VagueExpression
-
-        Concatenation < JoinableInitial (;OpConcatenate JoinableValue)+
-
-        FunctionLiteral      < ('(' ArgumentDeclarations? ')' / Identifier) ('{' FunctionLocals '}')? ;OpReturn Expression
-        FunctionCall         < ('(' FunctionLiteral ')' / SafeConditional / VagueExpression) '(' FunctionArguments? ')'
-        FunctionLocals       < List(Assignment){ trimOnce }
-        ArgumentDeclarations < List(Identifier){ trimOnce }
-        FunctionArguments    < List(Expression){ trimOnce }
-
-        OpAccess <- "::"
-
-        StructFields      < List(Assignment){ trimOnce }
-        StructLiteral     < '{' StructFields? '}'
-        StructFieldAccess < (StructLiteral / SafeConditional / VagueExpression) ;OpAccess Identifier
-
         VagueExpression < FunctionCall
                         / ArrayAccess
                         / StructFieldAccess
@@ -128,7 +65,59 @@ Funky:
                    | StringLiteral
                    | VagueExpression
 
+# Strings and Arrays.
+
+        MaybeAnArray < '(' MaybeAnArray ')'
+                     | Concatenation
+                     | ArrayLiteral
+                     | SafeConditional
+                     | VagueExpression
+
+        StringContent <~ (!["] ('\\' ["] / .))*
+        StringLiteral <- ["] StringContent ["]
+
+        ArrayContent < List(Expression){ trimOnce }
+        ArrayLiteral < '[' ArrayContent? ']'
+        ArrayAccess  < (ArraySlice / MaybeAnArray) '[' ArrayIndexValue ']'
+        ArraySlice   < (ArraySlice / MaybeAnArray) '[' ArraySliceRange ']'
+
+        ArrayIndexValue < Arithmetic / Conditional / VagueExpression
+        ArraySliceRange < (
+                ArrayIndexValue OpRange ArrayIndexValue /
+                ArrayIndexValue OpRange                 /
+                                OpRange ArrayIndexValue
+        )
+
+        OpConcatenate <- "~"
+        JoinableInitial < StringLiteral / ArraySlice / ArrayLiteral / SafeConditional / VagueExpression
+        JoinableValue < '(' JoinableValue ')' | !Conditional Expression
+
+        Concatenation < JoinableInitial (;OpConcatenate JoinableValue)+
+
+# Functions
+
+        FunctionLiteral      < ('(' ArgumentDeclarations? ')' / Identifier) ('{' FunctionLocals '}')? ;OpReturn Expression
+        FunctionCall         < ('(' FunctionLiteral ')' / SafeConditional / VagueExpression) '(' FunctionArguments? ')'
+        FunctionLocals       < List(Assignment){ trimOnce }
+        ArgumentDeclarations < List(Identifier){ trimOnce }
+        FunctionArguments    < List(Expression){ trimOnce }
+
+# Structs.
+
+        OpAccess <- "::"
+
+        StructFields      < List(Assignment){ trimOnce }
+        StructLiteral     < '{' StructFields? '}'
+        StructFieldAccess < (StructLiteral / SafeConditional / VagueExpression) ;OpAccess Identifier
+
 # Arithmetic.
+
+        Digit <- [0-9] NameSpacing?
+        NumberLiteral <{ stripNumber } ~(
+                Digit+                     # Sequence of digits.
+                ('.' Digit+)?              # Optional decimal point.
+                ('e' ('+' / '-')? Digit+)? # Optional scientific notation.
+        ) / ;KwordInfinity / ;KwordNaN
 
         OpSum      <- !"+-" "+" / !"--" "-"
         OpProduct  <- "*" / "/" / "%"
@@ -146,6 +135,8 @@ Funky:
                 | SafeConditional
 
 # Logical.
+
+        BooleanLiteral <- ;KwordTrue / ;KwordFalse
 
         OpNot  <- !"!=" !OpNor !OpNand !OpXnor "!"
         OpOr   <- "|"
