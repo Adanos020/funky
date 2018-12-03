@@ -1,21 +1,4 @@
-<style>
-.code-keyword {
-    color: orange;
-}
-.code-comment {
-    color: gray;
-    font-style: italic;
-}
-.code-operator {
-    color: red;
-}
-.code-string {
-    color: #66f;
-}
-.code-number {
-    color: blue;
-}
-</style>
+<link rel="stylesheet" href="README-style.css">
 
 # Funky
 Interpreter for my simple functional language, created for educational purposes.
