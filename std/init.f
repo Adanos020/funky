@@ -3,8 +3,8 @@
 ==
 == Returns: Object
 EXIT STATUS << (error code, message) -> {
-        error code <- error code,
-        message <- message
+    error code <- error code
+    message <- message
 }
 
 STATUS SUCCESS << 0

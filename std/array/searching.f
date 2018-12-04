@@ -45,7 +45,7 @@ find index (array, value) ->
 == Returns: Number
 ==     Index of the sought `value`, or -1 if it's not found.
 find index if (array, predicate) {
-    len << length (array),
+    len << length (array)
     index << len - length (find if (array, predicate))
 } ->
     index = len ? -1 : index
@@ -63,7 +63,7 @@ count (array, value) ->
 == Returns: Number
 ==     Number of such values in `array`.
 count if (array, predicate) {
-    end << array = [],
+    end << array = []
     add << !end & predicate (array[0]) ? 1 : 0
 } ->
     add + (end ? 0 : count if (array[1...], predicate))

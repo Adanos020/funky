@@ -291,11 +291,11 @@ say hello () -> "Hello, world!" == takes no parameters
 min (a, b) -> a < b ? a : b     == more than 1 parameters must be separated by commas
 ```
 
-Functions can have local variables which are resolved before the return value. Simply list them in curly brackets after the closing parenthesis `)` and before the rightward arrow `->`, each separated with a comma.
+Functions can have local variables which are resolved before the return value. Simply list them in curly brackets after the closing parenthesis `)` and before the rightward arrow `->`, each optionally separated with a semicolon (recommended if one line contains more than one declaration).
 ```
 == possible implementation of the +- operator
 fits in error bar (number, error) {
-    lower bound <- number - error,
+    lower bound <- number - error
     upper bound <- number + error
 } ->
     lower bound <= error <= upper bound
@@ -315,7 +315,7 @@ a lot <- factorial (9) == 362880
 Functions, as all other values, can be passed as parameters, although you don't need to assign them to any variable to do that. What you can do is make use of anonymous functions, also known as lambda expressions. In fact, the function literal shown some sections above is a lambda expression.
 ```
 filter (array, predicate) {
-    no elements <- array = [],
+    no elements <- array = []
     appended <- !no elements & predicate (array[0]) ? [array[0]] : []
 } ->
     no elements ? [] : appended ~ filter (array[1...], predicate)
@@ -332,9 +332,9 @@ even numbers == [2, 4, 6, 8]
 Structs are just packs of values, created with the following notation.
 ```
 person <- {
-    name <- "Adam",
-    biological sex << "male",
-    age <- 20,
+    name <- "Adam"
+    biological sex << "male"
+    age <- 20
     greet (other person's name) -> "Hello" ~ other person's name ~ "!"
 }
 ```

@@ -29,7 +29,7 @@ none (array, predicate) -> !any (array, predicate)
 ==
 == Returns: Array
 filter (array, predicate) {
-    no elements << array = [],
+    no elements << array = []
     appended << !no elements & predicate (array[0]) ? [array[0]] : []
 } ->
     no elements ? [] : appended ~ filter (array[1...], predicate)

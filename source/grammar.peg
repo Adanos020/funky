@@ -98,7 +98,7 @@ Funky:
 
         FunctionLiteral      < ('(' ArgumentDeclarations? ')' / Identifier) ('{' FunctionLocals '}')? ;OpReturn Expression
         FunctionCall         < ('(' FunctionLiteral ')' / SafeConditional / VagueExpression) '(' FunctionArguments? ')'
-        FunctionLocals       < List(Assignment){ trimOnce }
+        FunctionLocals       < (Assignment ';'?)+
         ArgumentDeclarations < List(Identifier){ trimOnce }
         FunctionArguments    < List(Expression){ trimOnce }
 
@@ -106,7 +106,7 @@ Funky:
 
         OpAccess <- "::"
 
-        StructFields      < List(Assignment){ trimOnce }
+        StructFields      < (Assignment ';'?)+
         StructLiteral     < '{' StructFields? '}'
         StructFieldAccess < (StructLiteral / SafeConditional / VagueExpression) ;OpAccess Identifier
 
