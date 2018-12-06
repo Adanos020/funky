@@ -487,42 +487,44 @@ private:
         string[] argNames;
         ParseTree[] localsCode;
         ParseTree code;
-}
-
-class FunctionCall : Expression
-{
-public:
-
-        this(Variable[string] locals, ParseTree code)
-        {
-                this.locals = locals;
-                this.code = code;
-        }
-
-        Expression call()
-        {
-                return this.code.toExpression(this.locals);
-        }
-
-        override Expression evaluate() const
-        {
-                return cast(Expression) this;
-        }
-
-        override string toString() const
-        {
-                return this.evaluate.toString;
-        }
-
-        override string dataType() const
-        {
-                return "FunctionCall";
-        }
 
 private:
 
-        Variable[string] locals;
-        ParseTree code;
+        class FunctionCall : Expression
+        {
+        public:
+
+                this(Variable[string] locals, ParseTree code)
+                {
+                        this.locals = locals;
+                        this.code = code;
+                }
+
+                Expression call()
+                {
+                        return this.code.toExpression(this.locals);
+                }
+
+                override Expression evaluate() const
+                {
+                        return cast(Expression) this;
+                }
+
+                override string toString() const
+                {
+                        return this.evaluate.toString;
+                }
+
+                override string dataType() const
+                {
+                        return "FunctionCall";
+                }
+
+        private:
+
+                Variable[string] locals;
+                ParseTree code;
+        }
 }
 
 // NUMBER
