@@ -424,19 +424,39 @@ public:
                         throw new TooFewArgumentsException(this, args.length, this.argNames.length);
                 }
 
+                Variable[string] locals;
+
+                // Taking all outer locals that are actually used.
+                foreach (key; outerLocals.byKey)
+                {
+                        if (this.argNames.canFind(key) || this.localsCode.any!(
+                                (loc) => loc.matches[0] == key))
+                        {
+                                continue;
+                        }
+
+                        if (this.code.matches.canFind(key) || this.localsCode.any!(
+                                (loc) => loc.matches[2 .. $].canFind(key)))
+                        {       //                  \__  __/
+                                //                     \/
+                                // Skipping the local variable name and the assignment operator.
+                                locals[key] = outerLocals[key];
+                        }
+                }
+
                 foreach (i, arg; args)
                 {
-                        this.locals[argNames[i]] = Variable(false, arg);
+                        locals[argNames[i]] = Variable(false, arg);
                 }
 
                 foreach (loc; localsCode)
                 {
                         // All of these are assignment expressions so they will
                         // be all assigned to the right container.
-                        loc.toExpression(this.locals);
+                        loc.toExpression(locals);
                 }
 
-                return code.toExpression(this.locals);
+                return new FunctionCall(locals, this.code).call.evaluate;
         }
 
         override Expression evaluate() const
@@ -465,8 +485,43 @@ public:
 private:
 
         string[] argNames;
-        Variable[string] locals;
         ParseTree[] localsCode;
+        ParseTree code;
+}
+
+class FunctionCall : Expression
+{
+public:
+
+        this(Variable[string] locals, ParseTree code)
+        {
+                this.locals = locals;
+                this.code = code;
+        }
+
+        Expression call()
+        {
+                return this.code.toExpression(this.locals);
+        }
+
+        override Expression evaluate() const
+        {
+                return cast(Expression) this;
+        }
+
+        override string toString() const
+        {
+                return this.evaluate.toString;
+        }
+
+        override string dataType() const
+        {
+                return "FunctionCall";
+        }
+
+private:
+
+        Variable[string] locals;
         ParseTree code;
 }
 
