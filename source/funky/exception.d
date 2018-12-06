@@ -46,7 +46,7 @@ class OutOfArrayBoundsException : Exception
         }
 }
 
-class NotConcatenatableException : Exception
+class NotJoinableException : Exception
 {
         this(string value, string type)
         {

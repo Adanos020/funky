@@ -8,6 +8,7 @@ import funky.parser;
 import pegged.grammar;
 
 import std.algorithm.comparison;
+import std.algorithm.iteration;
 import std.algorithm.searching;
 import std.conv;
 import std.math;
@@ -232,10 +233,8 @@ public:
 
         this(Expression[] compared, string[] ops)
         in {
-                assert(compared.length == ops.length + 1,
-                        "compared.length: %s, ops.length: %s"
-                                .format(compared.length, ops.length)
-                );
+                assert(compared.length == ops.length + 1, "compared.length: %s, ops.length: %s"
+                        .format(compared.length, ops.length));
         }
         body {
                 this.compared = compared;
@@ -248,7 +247,7 @@ public:
 
                 for (int i; i < ops.length; ++i)
                 {
-                        string op = ops[i];
+                        const(string) op = ops[i];
                         auto lhs = compared[i].evaluate;
                         auto rhs = compared[i + 1].evaluate;
 
@@ -268,58 +267,58 @@ public:
 
                                 case ">":
                                 {
-                                        if (!cast(Number) lhs)
+                                        if (auto left = cast(Number) lhs)
                                         {
-                                                throw new InvalidTypeException!(Number)(lhs.dataType, lhs.toString);
+                                                if (auto right = cast(Number) rhs)
+                                                {
+                                                        result = new Boolean(result.value && left > right);
+                                                        break;
+                                                }
+                                                throw new InvalidTypeException!Number(rhs.dataType, rhs.toString);
                                         }
-                                        if (!cast(Number) rhs)
-                                        {
-                                                throw new InvalidTypeException!(Number)(rhs.dataType, rhs.toString);
-                                        }
-                                        result = new Boolean(result.value && cast(Number) lhs > cast(Number) rhs);
-                                        break;
+                                        throw new InvalidTypeException!Number(lhs.dataType, lhs.toString);
                                 }
 
                                 case ">=":
                                 {
-                                        if (!cast(Number) lhs)
+                                        if (auto left = cast(Number) lhs)
                                         {
-                                                throw new InvalidTypeException!(Number)(lhs.dataType, lhs.toString);
+                                                if (auto right = cast(Number) rhs)
+                                                {
+                                                        result = new Boolean(result.value && left >= right);
+                                                        break;
+                                                }
+                                                throw new InvalidTypeException!Number(rhs.dataType, rhs.toString);
                                         }
-                                        if (!cast(Number) rhs)
-                                        {
-                                                throw new InvalidTypeException!(Number)(rhs.dataType, rhs.toString);
-                                        }
-                                        result = new Boolean(result.value && cast(Number) lhs >= cast(Number) rhs);
-                                        break;
+                                        throw new InvalidTypeException!Number(lhs.dataType, lhs.toString);
                                 }
 
                                 case "<":
                                 {
-                                        if (!cast(Number) lhs)
+                                        if (auto left = cast(Number) lhs)
                                         {
-                                                throw new InvalidTypeException!(Number)(lhs.dataType, lhs.toString);
+                                                if (auto right = cast(Number) rhs)
+                                                {
+                                                        result = new Boolean(result.value && left < right);
+                                                        break;
+                                                }
+                                                throw new InvalidTypeException!Number(rhs.dataType, rhs.toString);
                                         }
-                                        if (!cast(Number) rhs)
-                                        {
-                                                throw new InvalidTypeException!(Number)(rhs.dataType, rhs.toString);
-                                        }
-                                        result = new Boolean(result.value && cast(Number) lhs < cast(Number) rhs);
-                                        break;
+                                        throw new InvalidTypeException!Number(lhs.dataType, lhs.toString);
                                 }
 
                                 case "<=":
                                 {
-                                        if (!cast(Number) lhs)
+                                        if (auto left = cast(Number) lhs)
                                         {
-                                                throw new InvalidTypeException!(Number)(lhs.dataType, lhs.toString);
+                                                if (auto right = cast(Number) rhs)
+                                                {
+                                                        result = new Boolean(result.value && left <= right);
+                                                        break;
+                                                }
+                                                throw new InvalidTypeException!Number(rhs.dataType, rhs.toString);
                                         }
-                                        if (!cast(Number) rhs)
-                                        {
-                                                throw new InvalidTypeException!(Number)(rhs.dataType, rhs.toString);
-                                        }
-                                        result = new Boolean(result.value && cast(Number) lhs <= cast(Number) rhs);
-                                        break;
+                                        throw new InvalidTypeException!Number(lhs.dataType, lhs.toString);
                                 }
                         }
 
@@ -387,7 +386,7 @@ public:
                         return arr;
                 }
 
-                throw new NotConcatenatableException(this.values[0].toString, this.values[0].dataType);
+                throw new NotJoinableException(this.values[0].toString, this.values[0].dataType);
         }
 
         override string toString() const
@@ -418,7 +417,7 @@ public:
                 this.code       = code;
         }
 
-        Expression call(Expression[] args = [])
+        Expression call(Variable[string] outerLocals, Expression[] args = [])
         {
                 if (args.length != this.argNames.length)
                 {
@@ -432,7 +431,8 @@ public:
 
                 foreach (loc; localsCode)
                 {
-                        // All of these are assignment expressions so they will be all assigned to the right container.
+                        // All of these are assignment expressions so they will
+                        // be all assigned to the right container.
                         loc.toExpression(this.locals);
                 }
 
@@ -712,7 +712,7 @@ public:
                                 const(Variable) var = this.fields[key];
                                 const(bool) isString = var.value.dataType == "String";
 
-                                str ~= "%s %s %s, ".format(key, var.constant ? "<<" : "<-",
+                                str ~= "%s %s %s; ".format(key, var.constant ? "<<" : "<-",
                                         isString ? `"` ~ var.value.toString ~ `"` : var.value.toString);
                         }
 
@@ -760,12 +760,12 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
         {
                 case "Funky.Sum", "Funky.Product", "Funky.Power":
                 {
-                        return p.children[0].process!(Number)(locals, (left)
+                        return p.children[0].process!Number(locals, (left)
                         {
                                 for (int i = 2; i < p.children.length; i += 2)
                                 {
                                         const(string) op = p.children[i - 1].match;
-                                        left = cast(Number) p.children[i].process!(Number)(locals, (right)
+                                        left = cast(Number) p.children[i].process!Number(locals, (right)
                                         {
                                                 Number aBinOp(string op)()
                                                 {
@@ -790,7 +790,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                 case "Funky.Unary":
                 {
                         const(string) op = p.children[0].match;
-                        return p.children[1].process!(Number)(locals, (right)
+                        return p.children[1].process!Number(locals, (right)
                         {
                                 // Unary `+` doesn't change the value.
                                 return new Number(op == "-" ? -right.value : right.value);
@@ -799,9 +799,9 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.ArrayAccess":
                 {
-                        return p.children[0].process!(Array)(locals, (array)
+                        return p.children[0].process!Array(locals, (array)
                         {
-                                return p.children[1].process!(Number)(locals, (index)
+                                return p.children[1].process!Number(locals, (index)
                                 {
                                         return array[cast(int) index.value];
                                 });
@@ -822,9 +822,9 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.ArraySlice":
                 {
-                        return p.children[0].process!(Array)(locals, (array)
+                        return p.children[0].process!Array(locals, (array)
                         {
-                                return p.children[1].process!(Range)(locals, (range)
+                                return p.children[1].process!Range(locals, (range)
                                 {
                                         return array.slice(range);
                                 });
@@ -859,9 +859,9 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                         if (p.children[0].name == "Funky.ArrayAccess")
                         {
-                                return p.child.children[0].process!(Array)(locals, (arr)
+                                return p.child.children[0].process!Array(locals, (arr)
                                 {
-                                        return p.children[0].children[1].process!(Number)(locals, (index)
+                                        return p.children[0].children[1].process!Number(locals, (index)
                                         {
                                                 arr[cast(int) index.value] = p.children[1].toExpression(locals).evaluate;
                                                 return arr;
@@ -872,7 +872,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                         if (p.children[0].name == "Funky.StructFieldAccess")
                         {
                                 Expression expr = p.children[1].toExpression(locals).evaluate;
-                                return p.child.children[0].process!(Struct)(locals, (str)
+                                return p.child.children[0].process!Struct(locals, (str)
                                 {
                                         return str.field(p.children[0].children[1].match, expr, constant);
                                 });
@@ -921,7 +921,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.Conditional":
                 {
-                        return p.children[0].process!(Logical)(locals, (condition)
+                        return p.children[0].process!Logical(locals, (condition)
                         {
                                 return condition.value ? p.children[1].toExpression(locals).evaluate
                                                        : p.children[2].toExpression(locals).evaluate;
@@ -930,9 +930,9 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.Error":
                 {
-                        return p.children[0].process!(Number)(locals, (value)
+                        return p.children[0].process!Number(locals, (value)
                         {
-                                return p.children[1].process!(Number)(locals, (error)
+                                return p.children[1].process!Number(locals, (error)
                                 {
                                         const(double) v = value.value;
                                         const(double) e = error.value;
@@ -943,11 +943,11 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.FunctionCall":
                 {
-                        return p.children[0].process!(Function)(locals, (func)
+                        return p.children[0].process!Function(locals, (func)
                         {
                                 if (p.children.length < 2)
                                 {
-                                        return func.call();
+                                        return func.call(locals);
                                 }
                                 auto args = new Expression[p.children[1].children.length];
 
@@ -956,7 +956,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                                         args[i] = ch.toExpression(locals).evaluate;
                                 }
 
-                                return func.call(args);
+                                return func.call(locals, args);
                         });
                 }
 
@@ -1006,7 +1006,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.Or", "Funky.And", "Funky.Xor":
                 {
-                        return p.children[0].process!(Logical)(locals, (left)
+                        return p.children[0].process!Logical(locals, (left)
                         {
                                 for (int i = 2; i < p.children.length; i += 2)
                                 {
@@ -1017,7 +1017,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                                             ((op == "&" || op == "!&") && lval)  ||
                                              (op == "@" || op == "!@"))
                                         {
-                                                left = cast(Logical) p.children[i].process!(Logical)(locals, (right)
+                                                left = cast(Logical) p.children[i].process!Logical(locals, (right)
                                                 {
                                                         const(bool) rval = right.value;
                                                         const(bool) result = (op ==  "|") ?  (lval || rval)
@@ -1040,7 +1040,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.Not":
                 {
-                        return p.children[1].process!(Logical)(locals, (right)
+                        return p.children[1].process!Logical(locals, (right)
                         {
                                 return new Boolean(!right.value);
                         });
@@ -1062,14 +1062,14 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
                         // array[..upper]
                         if (p.children[0].name == "Funky.OpRange")
                         {
-                                return p.children[1].process!(Number)(locals, (upper)
+                                return p.children[1].process!Number(locals, (upper)
                                 {
                                         return new Range(0, upper.value, p.children[0].match == "...");
                                 });
                         }
 
                         // array[lower..]
-                        return p.children[0].process!(Number)(locals, (lower)
+                        return p.children[0].process!Number(locals, (lower)
                         {
                                 return new Range(lower.value, -1, p.children[1].match == "...");
                         });
@@ -1077,9 +1077,9 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.Range":
                 {
-                        return p.children[0].process!(Number)(locals, (lower)
+                        return p.children[0].process!Number(locals, (lower)
                         {
-                                return p.children[2].process!(Number)(locals, (upper)
+                                return p.children[2].process!Number(locals, (upper)
                                 {
                                         return new Range(lower.value, upper.value, p.children[1].match == "...");
                                 });
@@ -1108,7 +1108,7 @@ package Expression toExpression(ParseTree p, Variable[string] locals)
 
                 case "Funky.StructFieldAccess":
                 {
-                        return p.children[0].process!(Struct)(locals, (str)
+                        return p.children[0].process!Struct(locals, (str)
                         {
                                 return str.field(p.children[1].match);
                         });
